@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تسجيل الدخول - ورشة الألمنيوم</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-card { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; width: 300px; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        button { background: #27ae60; color: white; border: none; padding: 10px; width: 100%; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #219150; }
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+</head>
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyACkoN8JM59JKfFeEJwZqQVkJf0rHWPlZQ",
+        authDomain: "ameer-aluom.firebaseapp.com",
+        projectId: "ameer-aluom",
+        storageBucket: "ameer-aluom.firebasestorage.app",
+        messagingSenderId: "532053220562",
+        appId: "1:532053220562:web:7e47d6cb878c3d1d6ca10b"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    // "حارس الأمن": إذا لم يجد مستخدماً مسجلاً، سيقوم بإعادة توجيهه فوراً
+    firebase.auth().onAuthStateChanged((user) => {
+        if (!user) {
+            window.location.href = "login.html";
+        }
+    });
+</script>
+ </style>
+</head>
+<body>
+<body>
+    <input type="email" id="email" placeholder="البريد الإلكتروني">
+    <input type="password" id="pass" placeholder="كلمة المرور">
+    <button onclick="login()">دخول</button>
+
+    <script>
+        // إعدادات المشروع (ضعها هنا في صفحة login.html أيضاً)
+        const firebaseConfig = {
+            apiKey: "AIzaSyACkoN8JM59JKfFeEJwZqQVkJf0rHWPlZQ",
+            authDomain: "ameer-aluom.firebaseapp.com",
+            projectId: "ameer-aluom",
+            storageBucket: "ameer-aluom.firebasestorage.app",
+            messagingSenderId: "532053220562",
+            appId: "1:532053220562:web:7e47d6cb878c3d1d6ca10b"
+        };
+        firebase.initializeApp(firebaseConfig);
+
+        // دالة الدخول
+        function login() {
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('pass').value;
+
+            firebase.auth().signInWithEmailAndPassword(email, pass)
+                .then(() => {
+                    // إذا نجح الدخول، المتصفح سينقلك لـ index.html
+                    window.location.href = "index.html";
+                })
+                .catch((error) => {
+                    alert("خطأ: تأكد من البريد وكلمة المرور");
+                });
+        }
+    </script>
+</body>
+    }
+</script>
+</body>
+</html>
