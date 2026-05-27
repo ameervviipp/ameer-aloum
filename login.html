@@ -9,13 +9,18 @@
         input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
         button { background: #27ae60; color: white; border: none; padding: 10px; width: 100%; border-radius: 5px; cursor: pointer; font-weight: bold; }
         button:hover { background: #219150; }
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-
+   <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 </head>
 <script>
-    // هذا الكود يضمن عدم البدء قبل تحميل مكتبات Firebase
-    document.addEventListener("DOMContentLoaded", function() {
+    // هذه الدالة تنتظر تحميل المكتبات بالكامل
+    function initFirebase() {
+        if (typeof firebase === 'undefined') {
+            console.log("جاري الانتظار لتحميل Firebase...");
+            setTimeout(initFirebase, 500); // انتظر نصف ثانية ثم حاول مرة أخرى
+            return;
+        }
+
         const firebaseConfig = {
             apiKey: "AIzaSyACkoN8JM59JKfFeEJwZqQVkJf0rHWPlZQ",
             authDomain: "ameer-aluom.firebaseapp.com",
@@ -24,32 +29,30 @@
             messagingSenderId: "532053220562",
             appId: "1:532053220562:web:7e47d6cb878c3d1d6ca10b"
         };
-        
-        // التحقق من أن المكتبة موجودة
-        if (typeof firebase !== 'undefined') {
-            firebase.initializeApp(firebaseConfig);
-            console.log("تم تحميل Firebase بنجاح!");
-        } else {
-            console.error("خطأ: لم يتم العثور على Firebase. تأكد من اتصال الإنترنت أو الرابط!");
-        }
-    });
+        firebase.initializeApp(firebaseConfig);
+        console.log("Firebase جاهز للعمل!");
+    }
+
+    // ابدأ محاولة التهيئة
+    initFirebase();
 
     function login() {
         const email = document.getElementById('email').value;
         const pass = document.getElementById('pass').value;
 
-        // التحقق مرة أخرى قبل تسجيل الدخول
-        if (typeof firebase !== 'undefined') {
-            firebase.auth().signInWithEmailAndPassword(email, pass)
-                .then(() => {
-                    window.location.href = "index.html";
-                })
-                .catch((error) => {
-                    alert("خطأ: " + error.message);
-                });
-        } else {
-            alert("المكتبة غير محملة، يرجى تحديث الصفحة.");
+        // التحقق من أن firebase جاهز قبل الاستخدام
+        if (typeof firebase === 'undefined') {
+            alert("يرجى الانتظار، جاري تحميل النظام...");
+            return;
         }
+
+        firebase.auth().signInWithEmailAndPassword(email, pass)
+            .then(() => {
+                window.location.href = "index.html";
+            })
+            .catch((error) => {
+                alert("خطأ: " + error.message);
+            });
     }
 </script>
  </style>
