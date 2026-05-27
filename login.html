@@ -13,38 +13,41 @@
     <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 </head>
 <script>
-    // هذه الدالة تنتظر تحميل المكتبات بالكامل
-    function initFirebase() {
-        if (typeof firebase === 'undefined') {
-            console.log("جاري الانتظار لتحميل Firebase...");
-            setTimeout(initFirebase, 500); // انتظر نصف ثانية ثم حاول مرة أخرى
-            return;
-        }
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyACkoN8JM59JKfFeEJwZqQVkJf0rHWPlZQ",
-            authDomain: "ameer-aluom.firebaseapp.com",
-            projectId: "ameer-aluom",
-            storageBucket: "ameer-aluom.firebasestorage.app",
-            messagingSenderId: "532053220562",
-            appId: "1:532053220562:web:7e47d6cb878c3d1d6ca10b"
-        };
-        firebase.initializeApp(firebaseConfig);
-        console.log("Firebase جاهز للعمل!");
+    // 1. حقن مكتبة Firebase برمجياً
+    function loadScript(url, callback) {
+        var script = document.createElement("script");
+        script.type = "text/javascript";
+        script.src = url;
+        script.onload = callback;
+        document.head.appendChild(script);
     }
 
-    // ابدأ محاولة التهيئة
-    initFirebase();
+    // 2. تحميل المكتبات ثم تهيئة المشروع
+    loadScript("https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js", function() {
+        loadScript("https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js", function() {
+            
+            const firebaseConfig = {
+                apiKey: "AIzaSyACkoN8JM59JKfFeEJwZqQVkJf0rHWPlZQ",
+                authDomain: "ameer-aluom.firebaseapp.com",
+                projectId: "ameer-aluom",
+                storageBucket: "ameer-aluom.firebasestorage.app",
+                messagingSenderId: "532053220562",
+                appId: "1:532053220562:web:7e47d6cb878c3d1d6ca10b"
+            };
+            firebase.initializeApp(firebaseConfig);
+            console.log("Firebase جاهز تماماً!");
+        });
+    });
 
+    // 3. دالة الدخول
     function login() {
-        const email = document.getElementById('email').value;
-        const pass = document.getElementById('pass').value;
-
-        // التحقق من أن firebase جاهز قبل الاستخدام
-        if (typeof firebase === 'undefined') {
-            alert("يرجى الانتظار، جاري تحميل النظام...");
+        if (typeof firebase === 'undefined' || !firebase.auth) {
+            alert("المكتبات لم تُحمل بعد، انتظر ثانية وحاول مجدداً.");
             return;
         }
+        
+        const email = document.getElementById('email').value;
+        const pass = document.getElementById('pass').value;
 
         firebase.auth().signInWithEmailAndPassword(email, pass)
             .then(() => {
