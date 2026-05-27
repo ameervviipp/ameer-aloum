@@ -1,73 +1,19 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>تسجيل الدخول - ورشة الألمنيوم</title>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-card { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; width: 300px; }
-        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        button { background: #27ae60; color: white; border: none; padding: 10px; width: 100%; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #219150; }
-   <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-</head>
-<script>
-    // 1. حقن مكتبة Firebase برمجياً
-    function loadScript(url, callback) {
-        var script = document.createElement("script");
-        script.type = "text/javascript";
-        script.src = url;
-        script.onload = callback;
-        document.head.appendChild(script);
-    }
-
-    // 2. تحميل المكتبات ثم تهيئة المشروع
-    loadScript("https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js", function() {
-        loadScript("https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js", function() {
-            
-            const firebaseConfig = {
-                apiKey: "AIzaSyACkoN8JM59JKfFeEJwZqQVkJf0rHWPlZQ",
-                authDomain: "ameer-aluom.firebaseapp.com",
-                projectId: "ameer-aluom",
-                storageBucket: "ameer-aluom.firebasestorage.app",
-                messagingSenderId: "532053220562",
-                appId: "1:532053220562:web:7e47d6cb878c3d1d6ca10b"
-            };
-            firebase.initializeApp(firebaseConfig);
-            console.log("Firebase جاهز تماماً!");
-        });
-    });
-
-    // 3. دالة الدخول
-    function login() {
-        if (typeof firebase === 'undefined' || !firebase.auth) {
-            alert("المكتبات لم تُحمل بعد، انتظر ثانية وحاول مجدداً.");
-            return;
-        }
-        
-        const email = document.getElementById('email').value;
-        const pass = document.getElementById('pass').value;
-
-        firebase.auth().signInWithEmailAndPassword(email, pass)
-            .then(() => {
-                window.location.href = "index.html";
-            })
-            .catch((error) => {
-                alert("خطأ: " + error.message);
-            });
-    }
-</script>
- </style>
+    <title>تسجيل الدخول</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 </head>
 <body>
-<body>
+
     <input type="email" id="email" placeholder="البريد الإلكتروني">
     <input type="password" id="pass" placeholder="كلمة المرور">
-    <button onclick="login()">دخول</button>
+    <button id="loginBtn">دخول</button>
 
     <script>
-        // إعدادات المشروع (ضعها هنا في صفحة login.html أيضاً)
+        // 2. إعدادات Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyACkoN8JM59JKfFeEJwZqQVkJf0rHWPlZQ",
             authDomain: "ameer-aluom.firebaseapp.com",
@@ -76,25 +22,23 @@
             messagingSenderId: "532053220562",
             appId: "1:532053220562:web:7e47d6cb878c3d1d6ca10b"
         };
+
+        // 3. تهيئة التطبيق
         firebase.initializeApp(firebaseConfig);
 
-        // دالة الدخول
-        function login() {
-            const email = document.getElementById('email').value;
-            const pass = document.getElementById('pass').value;
+        // 4. دالة الدخول عند الضغط على الزر
+        document.getElementById("loginBtn").addEventListener("click", function() {
+            const email = document.getElementById("email").value;
+            const pass = document.getElementById("pass").value;
 
             firebase.auth().signInWithEmailAndPassword(email, pass)
-                .then(() => {
-                    // إذا نجح الدخول، المتصفح سينقلك لـ index.html
+                .then((userCredential) => {
                     window.location.href = "index.html";
                 })
                 .catch((error) => {
-                    alert("خطأ: تأكد من البريد وكلمة المرور");
+                    alert("خطأ: " + error.message);
                 });
-        }
+        });
     </script>
-</body>
-    }
-</script>
 </body>
 </html>
