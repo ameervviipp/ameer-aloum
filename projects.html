@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<style>html { visibility: hidden; }</style>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script>
+    var firebaseConfig = {
+        apiKey: "AIzaSyACkoN8JM59JKfFeEJwZqQVkJf0rHWPlZQ",
+        authDomain: "ameer-aluom.firebaseapp.com",
+        projectId: "ameer-aluom",
+        storageBucket: "ameer-aluom.firebasestorage.app",
+        messagingSenderId: "532053220562",
+        appId: "1:532053220562:web:7e47d6cb878c3d1d6ca10b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.firestore();
+    var currentUid = null;
+    var domReady   = false;
+    firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+            document.documentElement.style.visibility = 'visible';
+            currentUid = user.uid;
+            if (domReady) initApp();
+        } else {
+            window.location.replace('login.html');
+        }
+    });
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المشاريع - ورشة الألمنيوم</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f0f4f8; direction: rtl; }
+
+    /* NAVBAR */
+    .app-navbar { background: #1a3c5e; display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 3px solid #e67e22; }
+    .navbar-brand { font-size: 17px; font-weight: bold; color: white; }
+    .navbar-links { display: flex; gap: 6px; }
+    .nav-link { color: #a8c4e0; text-decoration: none; padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: bold; }
+    .nav-link:hover { background: rgba(255,255,255,0.12); color: white; }
+    .nav-link.active { background: #e67e22; color: white; }
+    .nav-logout { background: #c0392b; color: white; border: none; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: bold; }
+
+    /* PAGE */
+    .page-wrapper { max-width: 1150px; margin: 0 auto; padding: 20px; }
+    .page-title { color: #1a3c5e; font-size: 22px; font-weight: bold; margin-bottom: 20px; }
+
+    /* STATS */
+    .stats-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .stat-card { background: white; border-radius: 10px; padding: 14px 20px; flex: 1; min-width: 130px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-right: 4px solid #ccc; text-align: center; }
+    .stat-card.all  { border-color: #1a3c5e; }
+    .stat-card.new  { border-color: #2980b9; }
+    .stat-card.wip  { border-color: #e67e22; }
+    .stat-card.done { border-color: #27ae60; }
+    .stat-num   { font-size: 26px; font-weight: bold; color: #1a3c5e; }
+    .stat-label { font-size: 12px; color: #666; margin-top: 3px; }
+
+    /* FILTER */
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .filter-btn { border: 2px solid #ccc; background: white; padding: 7px 15px; border-radius: 20px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: bold; color: #555; }
+    .filter-btn.active { background: #1a3c5e; color: white; border-color: #1a3c5e; }
+    .search-input { border: 2px solid #ccc; border-radius: 20px; padding: 7px 14px; font-family: inherit; font-size: 13px; outline: none; min-width: 200px; }
+    .search-input:focus { border-color: #1a3c5e; }
+    .add-btn { background: #27ae60; color: white; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: bold; margin-right: auto; }
+
+    /* ADD / EDIT FORM */
+    .form-card { background: white; border: 2px dashed #1a3c5e; border-radius: 12px; padding: 22px; margin-bottom: 22px; display: none; }
+    .form-card.open { display: block; }
+    .form-card-title { color: #1a3c5e; font-size: 17px; font-weight: bold; margin-bottom: 16px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+
+    /* Project info grid */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .fg { display: flex; flex-direction: column; gap: 4px; }
+    .fg label { font-size: 12px; color: #555; font-weight: bold; }
+    .fg input, .fg select, .fg textarea { border: 1px solid #ccc; border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 14px; outline: none; }
+    .fg input:focus, .fg select:focus, .fg textarea:focus { border-color: #1a3c5e; }
+    .fg textarea { resize: vertical; min-height: 55px; }
+    .fg.wide { grid-column: 1 / -1; }
+
+    /* Windows sub-section */
+    .windows-section { background: #f8fafc; border: 1px solid #d0dce8; border-radius: 8px; padding: 16px; margin-bottom: 18px; }
+    .windows-section-title { font-weight: bold; color: #1a3c5e; margin-bottom: 12px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+    .btn-add-win { background: #2980b9; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: bold; }
+
+    /* Windows table inside form */
+    .win-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .win-table th { background: #1a3c5e; color: white; padding: 8px 10px; text-align: center; }
+    .win-table td { padding: 6px 8px; border-bottom: 1px solid #e0e8f0; text-align: center; }
+    .win-table td input, .win-table td select { border: 1px solid #ccc; border-radius: 4px; padding: 5px 6px; width: 100%; font-family: inherit; font-size: 13px; text-align: center; }
+    .btn-remove-win { background: #c0392b; color: white; border: none; width: 26px; height: 26px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+    .no-windows-msg { color: #aaa; font-size: 13px; padding: 10px 0; text-align: center; }
+
+    /* Form actions */
+    .form-actions { display: flex; gap: 10px; }
+    .btn-save    { background: #1a3c5e; color: white; border: none; padding: 9px 24px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: bold; }
+    .btn-cancel  { background: #95a5a6; color: white; border: none; padding: 9px 24px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: bold; }
+
+    /* PROJECTS TABLE */
+    .table-wrap { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
+    .proj-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .proj-table th { background: #1a3c5e; color: white; padding: 11px 12px; text-align: center; }
+    .proj-table td { padding: 10px 12px; text-align: center; border-bottom: 1px solid #eee; vertical-align: middle; }
+    .proj-table tr.proj-row:last-of-type td { border-bottom: none; }
+    .proj-table tr.proj-row:hover td { background: #f8fafc; }
+
+    /* Windows detail row */
+    .detail-row { display: none; }
+    .detail-row td { background: #f4f8fc; padding: 0 !important; border-bottom: 1px solid #d0dce8; }
+    .detail-row.open { display: table-row; }
+    .detail-inner { padding: 12px 20px; }
+    .detail-win-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .detail-win-table th { background: #2c5f8a; color: white; padding: 7px 12px; }
+    .detail-win-table td { padding: 7px 12px; border-bottom: 1px solid #e0e8f0; text-align: center; }
+    .detail-win-table tr:last-child td { border-bottom: none; }
+
+    /* Badges */
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; }
+    .status-new  { background: #d6eaf8; color: #1a6099; }
+    .status-wip  { background: #fdebd0; color: #a04000; }
+    .status-done { background: #d5f5e3; color: #1e8449; }
+    .type-badge  { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+    .type-normal  { background: #eaf0fb; color: #2980b9; }
+    .type-shutter { background: #f5eef8; color: #8e44ad; }
+    .win-summary-btn { background: none; border: 1px solid #2980b9; color: #2980b9; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: bold; cursor: pointer; }
+
+    .btn-edit-proj    { background: #e67e22; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
+    .btn-del-proj     { background: #c0392b; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px; }
+    .btn-print-proj   { background: #2980b9; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px; }
+    .btn-preview-win  { background: #8e44ad; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; text-decoration: none; display:inline-block; }
+    .btn-print-win    { background: #2980b9; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; margin-right: 3px; }
+    .value-cell    { font-weight: bold; color: #27ae60; }
+    .empty-row td  { color: #aaa; padding: 30px; font-size: 15px; }
+
+    @media (max-width: 700px) {
+        .proj-table { font-size: 12px; }
+        .proj-table th, .proj-table td { padding: 7px 6px; }
+    }
+</style>
+</head>
+<body>
+
+<div id="loading_overlay" style="display:none; position:fixed; inset:0; background:rgba(26,60,94,0.82); z-index:9999; justify-content:center; align-items:center; flex-direction:column; gap:14px;">
+    <div style="width:52px; height:52px; border:6px solid #e67e22; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+    <div style="color:#fff; font-size:16px; font-weight:bold;">جاري التحميل من الخادم...</div>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+
+<div class="app-navbar">
+    <div class="navbar-brand">🔧 ورشة الألمنيوم</div>
+    <div class="navbar-links">
+        <a href="index.html"     class="nav-link">🏠 الحاسبة</a>
+        <a href="projects.html"  class="nav-link active">📋 المشاريع</a>
+        <a href="inventory.html" class="nav-link">📦 المخزون</a>
+    </div>
+    <button class="nav-logout" onclick="doLogout()">🚪 خروج</button>
+</div>
+
+<div class="page-wrapper">
+    <div class="page-title">📋 إدارة المشاريع</div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+        <div class="stat-card all">  <div class="stat-num" id="stat_all">0</div>  <div class="stat-label">إجمالي المشاريع</div></div>
+        <div class="stat-card new">  <div class="stat-num" id="stat_new">0</div>  <div class="stat-label">جديد</div></div>
+        <div class="stat-card wip">  <div class="stat-num" id="stat_wip">0</div>  <div class="stat-label">قيد التنفيذ</div></div>
+        <div class="stat-card done"> <div class="stat-num" id="stat_done">0</div> <div class="stat-label">منجز</div></div>
+    </div>
+
+    <!-- Filter -->
+    <div class="filter-bar">
+        <button class="filter-btn active" data-filter="all"  onclick="setFilter(this,'all')">الكل</button>
+        <button class="filter-btn"        data-filter="new"  onclick="setFilter(this,'new')">🔵 جديد</button>
+        <button class="filter-btn"        data-filter="wip"  onclick="setFilter(this,'wip')">🟠 قيد التنفيذ</button>
+        <button class="filter-btn"        data-filter="done" onclick="setFilter(this,'done')">🟢 منجز</button>
+        <input class="search-input" id="search_input" placeholder="🔍 بحث باسم العميل..." oninput="renderProjects()">
+        <button class="add-btn" onclick="openNewForm()">➕ مشروع جديد</button>
+    </div>
+
+    <!-- Add / Edit Form -->
+    <div class="form-card" id="form_card">
+        <div class="form-card-title" id="form_card_title">➕ إضافة مشروع جديد</div>
+
+        <!-- Project meta -->
+        <div class="form-grid">
+            <div class="fg">
+                <label>اسم العميل *</label>
+                <input type="text" id="f_client" placeholder="محمد أحمد">
+            </div>
+            <div class="fg">
+                <label>التاريخ *</label>
+                <input type="date" id="f_date">
+            </div>
+            <div class="fg">
+                <label>الحالة</label>
+                <select id="f_status">
+                    <option value="new">جديد</option>
+                    <option value="wip">قيد التنفيذ</option>
+                    <option value="done">منجز</option>
+                </select>
+            </div>
+            <div class="fg">
+                <label>القيمة المالية (₪)</label>
+                <input type="number" id="f_value" placeholder="0" min="0">
+            </div>
+            <div class="fg wide">
+                <label>ملاحظات</label>
+                <textarea id="f_notes" placeholder="أي ملاحظات إضافية..."></textarea>
+            </div>
+        </div>
+
+        <!-- Windows sub-section -->
+        <div class="windows-section">
+            <div class="windows-section-title">
+                <span>🪟 الشبابيك</span>
+                <button class="btn-add-win" onclick="addWindowRow()">➕ إضافة شباك</button>
+            </div>
+            <table class="win-table" id="win_form_table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>النوع</th>
+                        <th>العرض W (cm)</th>
+                        <th>الارتفاع H (cm)</th>
+                        <th>العدد</th>
+                        <th>ملاحظة</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="win_form_body"></tbody>
+            </table>
+            <div class="no-windows-msg" id="no_win_msg">لم تُضف أي شباك بعد — اضغط "إضافة شباك"</div>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn-save" id="form_save_btn" onclick="saveProject()">💾 حفظ المشروع</button>
+            <button class="btn-cancel" onclick="cancelForm()">إلغاء</button>
+        </div>
+    </div>
+
+    <!-- Projects Table -->
+    <div class="table-wrap">
+        <table class="proj-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>العميل</th>
+                    <th>التاريخ</th>
+                    <th>الشبابيك</th>
+                    <th>إجمالي القطع</th>
+                    <th>القيمة</th>
+                    <th>الحالة</th>
+                    <th>ملاحظات</th>
+                    <th>إجراء</th>
+                </tr>
+            </thead>
+            <tbody id="projects_tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+var projects = [];
+var currentFilter = 'all';
+var editingId = null;
+var formWindows = [];   // windows being edited in the form
+
+/* ===================== AUTH ===================== */
+function doLogout() {
+    firebase.auth().signOut().then(function() { window.location.replace('login.html'); });
+}
+
+/* ===================== DATA ===================== */
+function migrateProjects(list) {
+    list.forEach(function(p) {
+        if (!p.windows) {
+            p.windows = [];
+            if (p.W || p.H) {
+                p.windows.push({ type: p.type||'normal', W:p.W||0, H:p.H||0, qty:p.qty||1, note:'' });
+            }
+        }
+    });
+    return list;
+}
+
+function initApp() {
+    document.getElementById('f_date').value = new Date().toISOString().split('T')[0];
+    showLoading(true);
+    db.collection('projects').doc(currentUid).get()
+        .then(function(doc) {
+            if (doc.exists && Array.isArray(doc.data().items)) {
+                projects = migrateProjects(doc.data().items);
+            } else {
+                // أول مرة — جرّب هجرة localStorage
+                try {
+                    var s = localStorage.getItem('workshop_projects');
+                    projects = s ? migrateProjects(JSON.parse(s)) : [];
+                    if (projects.length > 0) saveProjects(); // ارفع البيانات القديمة لـFirestore
+                } catch(e) { projects = []; }
+            }
+            renderProjects();
+            updateStats();
+            showLoading(false);
+        })
+        .catch(function(e) {
+            console.error('Firestore load error:', e);
+            projects = [];
+            renderProjects();
+            updateStats();
+            showLoading(false);
+        });
+}
+
+function showLoading(on) {
+    var el = document.getElementById('loading_overlay');
+    if (el) el.style.display = on ? 'flex' : 'none';
+}
+
+function saveProjects() {
+    // مزامنة محلية للـ print helpers
+    try { localStorage.setItem('workshop_projects', JSON.stringify(projects)); } catch(e) {}
+    // الحفظ الرئيسي في Firestore
+    if (!currentUid) return;
+    db.collection('projects').doc(currentUid).set({ items: projects })
+        .catch(function(e) { console.error('Firestore save error:', e); });
+}
+
+/* ===================== FILTER ===================== */
+function setFilter(btn, f) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    renderProjects();
+}
+
+/* ===================== FORM ===================== */
+function openNewForm() {
+    editingId = null;
+    formWindows = [];
+    clearFormFields();
+    document.getElementById('form_card_title').innerText = '➕ إضافة مشروع جديد';
+    document.getElementById('form_save_btn').innerText = '💾 حفظ المشروع';
+    document.getElementById('form_card').classList.add('open');
+    renderWindowFormRows();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelForm() {
+    editingId = null;
+    formWindows = [];
+    document.getElementById('form_card').classList.remove('open');
+}
+
+function clearFormFields() {
+    document.getElementById('f_client').value = '';
+    document.getElementById('f_notes').value = '';
+    document.getElementById('f_value').value = '';
+    document.getElementById('f_status').value = 'new';
+    document.getElementById('f_date').value = new Date().toISOString().split('T')[0];
+}
+
+/* ---- Windows in form ---- */
+function addWindowRow() {
+    formWindows.push({ type: 'normal', W: '', H: '', qty: 1, note: '' });
+    renderWindowFormRows();
+}
+
+function removeWindowRow(idx) {
+    formWindows.splice(idx, 1);
+    renderWindowFormRows();
+}
+
+function renderWindowFormRows() {
+    var tbody = document.getElementById('win_form_body');
+    var table = document.getElementById('win_form_table');
+    var noMsg = document.getElementById('no_win_msg');
+
+    if (formWindows.length === 0) {
+        table.style.display = 'none';
+        noMsg.style.display = 'block';
+        return;
+    }
+    table.style.display = 'table';
+    noMsg.style.display = 'none';
+
+    var html = '';
+    formWindows.forEach(function(w, i) {
+        html += '<tr>' +
+            '<td style="color:#999; font-size:12px;">' + (i + 1) + '</td>' +
+            '<td><select onchange="updateWin(' + i + ',\'type\',this.value)">' +
+                '<option value="normal"'  + (w.type==='normal'  ? ' selected' : '') + '>عادي</option>' +
+                '<option value="shutter"' + (w.type==='shutter' ? ' selected' : '') + '>أباجور</option>' +
+            '</select></td>' +
+            '<td><input type="number" value="' + (w.W||'') + '" placeholder="175" min="0" onchange="updateWin(' + i + ',\'W\',this.value)"></td>' +
+            '<td><input type="number" value="' + (w.H||'') + '" placeholder="119" min="0" onchange="updateWin(' + i + ',\'H\',this.value)"></td>' +
+            '<td><input type="number" value="' + (w.qty||1) + '" min="1" onchange="updateWin(' + i + ',\'qty\',this.value)" style="width:60px;"></td>' +
+            '<td><input type="text" value="' + (w.note||'') + '" placeholder="ملاحظة اختيارية" onchange="updateWin(' + i + ',\'note\',this.value)"></td>' +
+            '<td><button class="btn-remove-win" onclick="removeWindowRow(' + i + ')">×</button></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+}
+
+function updateWin(idx, field, val) {
+    if (!formWindows[idx]) return;
+    formWindows[idx][field] = (field === 'W' || field === 'H') ? (parseFloat(val) || 0)
+                            : (field === 'qty') ? (parseInt(val) || 1)
+                            : val;
+}
+
+/* ---- Save ---- */
+function saveProject() {
+    var client = document.getElementById('f_client').value.trim();
+    if (!client) { alert('الرجاء إدخال اسم العميل'); return; }
+
+    // Sync form inputs before saving
+    syncFormWindows();
+
+    var proj = {
+        id:      editingId || Date.now(),
+        client:  client,
+        date:    document.getElementById('f_date').value,
+        status:  document.getElementById('f_status').value,
+        value:   parseFloat(document.getElementById('f_value').value) || 0,
+        notes:   document.getElementById('f_notes').value.trim(),
+        windows: JSON.parse(JSON.stringify(formWindows))
+    };
+
+    if (editingId) {
+        var idx = projects.findIndex(function(p) { return p.id === editingId; });
+        if (idx !== -1) projects[idx] = proj;
+    } else {
+        projects.unshift(proj);
+    }
+    saveProjects();
+    cancelForm();
+    renderProjects();
+    updateStats();
+}
+
+function syncFormWindows() {
+    // Read current input values directly from the DOM
+    var rows = document.querySelectorAll('#win_form_body tr');
+    rows.forEach(function(row, i) {
+        if (!formWindows[i]) return;
+        var inputs  = row.querySelectorAll('input, select');
+        formWindows[i].type = inputs[0].value;
+        formWindows[i].W    = parseFloat(inputs[1].value) || 0;
+        formWindows[i].H    = parseFloat(inputs[2].value) || 0;
+        formWindows[i].qty  = parseInt(inputs[3].value)   || 1;
+        formWindows[i].note = inputs[4].value;
+    });
+}
+
+/* ---- Edit ---- */
+function editProject(id) {
+    var proj = projects.find(function(p) { return p.id === id; });
+    if (!proj) return;
+    editingId = id;
+    formWindows = JSON.parse(JSON.stringify(proj.windows || []));
+
+    document.getElementById('f_client').value = proj.client;
+    document.getElementById('f_date').value   = proj.date || '';
+    document.getElementById('f_status').value = proj.status || 'new';
+    document.getElementById('f_value').value  = proj.value || '';
+    document.getElementById('f_notes').value  = proj.notes || '';
+
+    document.getElementById('form_card_title').innerText = '✏️ تعديل مشروع: ' + proj.client;
+    document.getElementById('form_save_btn').innerText   = '💾 حفظ التعديلات';
+    document.getElementById('form_card').classList.add('open');
+    renderWindowFormRows();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ---- Delete ---- */
+function deleteProject(id) {
+    var proj = projects.find(function(p) { return p.id === id; });
+    if (proj && confirm('حذف مشروع "' + proj.client + '"؟')) {
+        projects = projects.filter(function(p) { return p.id !== id; });
+        saveProjects();
+        renderProjects();
+        updateStats();
+    }
+}
+
+/* ---- Status cycle ---- */
+function cycleStatus(id) {
+    var proj = projects.find(function(p) { return p.id === id; });
+    if (!proj) return;
+    var order = ['new','wip','done'];
+    proj.status = order[(order.indexOf(proj.status) + 1) % order.length];
+    saveProjects();
+    renderProjects();
+    updateStats();
+}
+
+/* ---- Toggle detail row ---- */
+function toggleDetail(id) {
+    var row = document.getElementById('detail_' + id);
+    if (row) row.classList.toggle('open');
+}
+
+/* ===================== RENDER ===================== */
+function statusInfo(s) {
+    if (s === 'new')  return { cls: 'status-new',  label: 'جديد' };
+    if (s === 'wip')  return { cls: 'status-wip',  label: 'قيد التنفيذ' };
+    if (s === 'done') return { cls: 'status-done', label: 'منجز' };
+    return { cls: '', label: s };
+}
+
+function winSummary(windows) {
+    if (!windows || windows.length === 0) return '<span style="color:#aaa; font-size:12px;">لا يوجد</span>';
+    var types = {};
+    var total = 0;
+    windows.forEach(function(w) {
+        var label = w.type === 'shutter' ? 'أباجور' : 'عادي';
+        types[label] = (types[label] || 0) + (parseInt(w.qty) || 1);
+        total += (parseInt(w.qty) || 1);
+    });
+    var parts = Object.keys(types).map(function(k) { return types[k] + ' ' + k; });
+    return '<span style="font-weight:bold;">' + total + ' شباك</span><br><span style="font-size:12px; color:#888;">' + parts.join(' + ') + '</span>';
+}
+
+function totalQty(windows) {
+    if (!windows) return 0;
+    return windows.reduce(function(s, w) { return s + (parseInt(w.qty) || 1); }, 0);
+}
+
+function renderProjects() {
+    var search   = document.getElementById('search_input').value.trim().toLowerCase();
+    var filtered = projects.filter(function(p) {
+        var mf = currentFilter === 'all' || p.status === currentFilter;
+        var ms = !search || p.client.toLowerCase().indexOf(search) !== -1;
+        return mf && ms;
+    });
+
+    var html = '';
+    if (filtered.length === 0) {
+        html = '<tr class="empty-row"><td colspan="9">لا توجد مشاريع</td></tr>';
+    } else {
+        filtered.forEach(function(p, i) {
+            var si       = statusInfo(p.status);
+            var dateStr  = p.date ? p.date.split('-').reverse().join('/') : '-';
+            var valStr   = p.value ? p.value.toLocaleString() + ' ₪' : '-';
+            var wins     = p.windows || [];
+            var winCount = wins.length;
+
+            // Detail rows HTML
+            var detailHtml = '';
+            if (winCount > 0) {
+                detailHtml += '<table class="detail-win-table"><thead><tr><th>#</th><th>النوع</th><th>العرض W</th><th>الارتفاع H</th><th>العدد</th><th>ملاحظة</th><th>إجراء</th></tr></thead><tbody>';
+                wins.forEach(function(w, wi) {
+                    var typeLabel = w.type === 'shutter' ? 'مع أباجور' : 'عادي';
+                    var typeCls   = w.type === 'shutter' ? 'type-shutter' : 'type-normal';
+                    var previewUrl = 'index.html?W=' + (w.W||0) + '&H=' + (w.H||0) + '&qty=' + (w.qty||1) + '&type=' + (w.type||'normal');
+                    detailHtml += '<tr>' +
+                        '<td>' + (wi+1) + '</td>' +
+                        '<td><span class="type-badge ' + typeCls + '">' + typeLabel + '</span></td>' +
+                        '<td>' + (w.W||'-') + ' cm</td>' +
+                        '<td>' + (w.H||'-') + ' cm</td>' +
+                        '<td>' + (w.qty||1) + '</td>' +
+                        '<td style="color:#888;">' + (w.note||'-') + '</td>' +
+                        '<td>' +
+                            '<a href="' + previewUrl + '" target="_blank" class="btn-preview-win">🔍 معاينة</a>' +
+                            '<button class="btn-print-win" onclick="printSingleWindow(' + p.id + ',' + wi + ')">🖨️ طباعة</button>' +
+                        '</td>' +
+                    '</tr>';
+                });
+                detailHtml += '</tbody></table>';
+            } else {
+                detailHtml = '<span style="color:#aaa; font-size:13px;">لا يوجد شبابيك مضافة</span>';
+            }
+
+            html += '<tr class="proj-row">' +
+                '<td style="color:#999; font-size:12px;">' + (i+1) + '</td>' +
+                '<td style="font-weight:bold; text-align:right;">' + p.client + '</td>' +
+                '<td>' + dateStr + '</td>' +
+                '<td>' +
+                    winSummary(wins) +
+                    (winCount > 0 ? '<br><button class="win-summary-btn" onclick="toggleDetail(' + p.id + ')">📋 التفاصيل</button>' : '') +
+                '</td>' +
+                '<td style="font-weight:bold;">' + totalQty(wins) + '</td>' +
+                '<td class="value-cell">' + valStr + '</td>' +
+                '<td><span class="status-badge ' + si.cls + '" onclick="cycleStatus(' + p.id + ')" title="اضغط لتغيير الحالة">' + si.label + '</span></td>' +
+                '<td style="font-size:12px; color:#777; text-align:right; max-width:130px;">' + (p.notes||'-') + '</td>' +
+                '<td>' +
+                    '<button class="btn-print-proj" onclick="printProject(' + p.id + ')">🖨️</button>' +
+                    '<button class="btn-edit-proj"  onclick="editProject(' + p.id + ')">✏️</button>' +
+                    '<button class="btn-del-proj"   onclick="deleteProject(' + p.id + ')">🗑️</button>' +
+                '</td>' +
+            '</tr>' +
+            '<tr class="detail-row" id="detail_' + p.id + '">' +
+                '<td colspan="9"><div class="detail-inner">' + detailHtml + '</div></td>' +
+            '</tr>';
+        });
+    }
+    document.getElementById('projects_tbody').innerHTML = html;
+}
+
+function updateStats() {
+    document.getElementById('stat_all').innerText  = projects.length;
+    document.getElementById('stat_new').innerText  = projects.filter(function(p){ return p.status==='new'; }).length;
+    document.getElementById('stat_wip').innerText  = projects.filter(function(p){ return p.status==='wip'; }).length;
+    document.getElementById('stat_done').innerText = projects.filter(function(p){ return p.status==='done'; }).length;
+}
+
+window.onload = function() {
+    domReady = true;
+    if (currentUid) initApp();
+};
+
+/* ===================== CALC HELPERS ===================== */
+var dfltNormal = [
+    { code: "03308", name: "عرض الحلق (أفقي)",  qty: "2", formula: "W - 2.6" },
+    { code: "03308", name: "طول الحلق (عمودي)", qty: "2", formula: "H" },
+    { code: "03327", name: "درفة طول (عمودي)",  qty: "4", formula: "H - 7.7" },
+    { code: "03336", name: "درفة عرض (أفقي)",  qty: "4", formula: "(W - 2.8) / 2" }
+];
+var dfltShutter = [
+    { code: "03308", name: "عرض الحلق - أباجور",  qty: "2", formula: "W - 2.6" },
+    { code: "03308", name: "طول الحلق - أباجور",  qty: "2", formula: "H - 21" },
+    { code: "03327", name: "درفة طول - أباجور",   qty: "4", formula: "H - 28.7" },
+    { code: "03336", name: "درفة عرض - أباجور",   qty: "4", formula: "(W - 2.8) / 2" }
+];
+var dfltGlass = { frame: 2.8, widthSide: 8.5, heightNormal: 7.7, heightShutter: 28.7, heightSide: 8.5 };
+var dfltNormAcc  = [
+    { name: "عجال", unit: "عجل", qty: 2 },
+    { name: "سكرة", unit: "قطعة", qty: 1 },
+    { name: "فرشاة مانع غبار", unit: "متر طولي", qty: 4 },
+    { name: "زوايا البشا", unit: "زاوية", qty: 4 }
+];
+var dfltShutAcc  = [
+    { name: "عجال", unit: "عجل", qty: 2 },
+    { name: "سكرة", unit: "قطعة", qty: 1 },
+    { name: "فرشاة مانع غبار", unit: "متر طولي", qty: 4 },
+    { name: "زوايا البشا", unit: "زاوية", qty: 4 },
+    { name: "صندوق أباجور", unit: "قطعة", qty: 1 }
+];
+
+function loadCalcData() {
+    function tryParse(key, fallback) {
+        try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : JSON.parse(JSON.stringify(fallback)); }
+        catch(e) { return JSON.parse(JSON.stringify(fallback)); }
+    }
+    return {
+        normal:   tryParse('workshop_normal_items', dfltNormal),
+        shutter:  tryParse('workshop_shutter_items', dfltShutter),
+        glass:    tryParse('workshop_glass_data', dfltGlass),
+        accNorm:  tryParse('workshop_acc_normal', dfltNormAcc),
+        accShut:  tryParse('workshop_acc_shutter', dfltShutAcc)
+    };
+}
+
+function evalFormula(f, W, H) {
+    try { return eval(f.split('W').join(W).split('H').join(H)); }
+    catch(e) { return null; }
+}
+
+function calcWindowSheet(w, cd) {
+    var W    = parseFloat(w.W)   || 0;
+    var H    = parseFloat(w.H)   || 0;
+    var qty  = parseInt(w.qty)   || 1;
+    var isShutter = w.type === 'shutter';
+    var profiles  = isShutter ? cd.shutter : cd.normal;
+    var accs      = isShutter ? cd.accShut : cd.accNorm;
+    var g         = cd.glass;
+
+    // Profile cuts
+    var cuts = profiles.map(function(item) {
+        var totalQty = (parseInt(item.qty) || 0) * qty;
+        var result   = evalFormula(item.formula, W, H);
+        return {
+            code: item.code,
+            name: item.name,
+            totalQty: totalQty,
+            cut: result !== null && !isNaN(result) ? result.toFixed(1) : 'خطأ'
+        };
+    });
+
+    // Glass
+    var glassW = ((W - g.frame) / 2) - g.widthSide;
+    var glassH = H - (isShutter ? g.heightShutter : g.heightNormal) - g.heightSide;
+    if (glassW < 0) glassW = 0;
+    if (glassH < 0) glassH = 0;
+
+    // Accessories
+    var accessories = accs.map(function(a) {
+        return { name: a.name, unit: a.unit, total: Math.ceil(a.qty * qty) };
+    });
+
+    return { W: W, H: H, qty: qty, isShutter: isShutter, cuts: cuts,
+             glassW: glassW.toFixed(1), glassH: glassH.toFixed(1),
+             glassQty: 2 * qty, accessories: accessories };
+}
+
+/* ===================== PRINT ===================== */
+function buildPrintDoc(proj, windowIndices) {
+    var cd      = loadCalcData();
+    var wins    = proj.windows || [];
+    var dateStr = proj.date ? proj.date.split('-').reverse().join('/') : '';
+
+    var pages = '';
+    windowIndices.forEach(function(wi, pageIdx) {
+        var w = wins[wi];
+        if (!w) return;
+        var s         = calcWindowSheet(w, cd);
+        var typeLabel = s.isShutter ? 'مع أباجور' : 'شباك عادي';
+        var winNote   = w.note ? ' — ' + w.note : '';
+
+        // Profile rows — same style as index.html (profile-badge + num-result)
+        var profileRows = s.cuts.map(function(c) {
+            return '<tr>' +
+                '<td><span class="profile-badge">' + c.code + '</span></td>' +
+                '<td style="text-align:right; font-weight:bold;">' + c.name + '</td>' +
+                '<td>' + c.totalQty + '</td>' +
+                '<td class="num-result">' + c.cut + '</td>' +
+            '</tr>';
+        }).join('');
+
+        // Accessory rows
+        var accRows = s.accessories.map(function(a) {
+            return '<tr>' +
+                '<td style="text-align:right;">' + a.name + '</td>' +
+                '<td class="res-highlight">' + a.total + '</td>' +
+                '<td>' + a.unit + '</td>' +
+            '</tr>';
+        }).join('');
+
+        // Shutter block (only if shutter type)
+        var shutterBlock = s.isShutter
+            ? '<div class="shutter-row-frame">📦 صندوق الأباجور</div>'
+            : '';
+
+        pages += (pageIdx > 0 ? '<div style="page-break-after:always;"></div>' : '') +
+        '<div class="main-sheet">' +
+
+            // ---- Header (identical to index.html) ----
+            '<div class="header-section">' +
+                '<h2>📋 أمر تشغيل فني — ' + proj.client + winNote + '</h2>' +
+                '<p>الشباك ' + (wi + 1) + ' &nbsp;|&nbsp; النوع: ' + typeLabel +
+                   ' &nbsp;|&nbsp; W: ' + s.W + ' cm &nbsp;|&nbsp; H: ' + s.H + ' cm' +
+                   ' &nbsp;|&nbsp; العدد: ' + s.qty +
+                   (dateStr ? ' &nbsp;|&nbsp; التاريخ: ' + dateStr : '') + '</p>' +
+            '</div>' +
+
+            // ---- Two-column layout ----
+            '<div class="content-layout">' +
+
+                // RIGHT: Profiles table
+                '<div class="table-container">' +
+                    '<table class="main-data-table">' +
+                        '<thead><tr>' +
+                            '<th>البروفيل</th>' +
+                            '<th>بيان القطعة</th>' +
+                            '<th>العدد الإجمالي</th>' +
+                            '<th>صافي القص (cm)</th>' +
+                        '</tr></thead>' +
+                        '<tbody>' + profileRows + '</tbody>' +
+                    '</table>' +
+                '</div>' +
+
+                // LEFT: Diagram + Glass + Accessories
+                '<div class="left-sidebar">' +
+
+                    // Diagram
+                    '<div class="window-diagram-box">' +
+                        '<h4>📐 كروكي أبعاد الهيكل الرئيسي</h4>' +
+                        '<table class="diagram-table-layout">' +
+                            '<tr>' +
+                                '<td></td>' +
+                                '<td class="measure-label-style" style="padding-bottom:5px;">W = ' + s.W + ' cm</td>' +
+                                '<td></td>' +
+                            '</tr>' +
+                            '<tr>' +
+                                '<td style="vertical-align:middle; padding-left:8px;">' +
+                                    '<div style="border-right:2px dashed #c0392b; position:relative; height:130px;">' +
+                                        '<div class="measure-label-style" style="position:absolute; right:6px; top:35%; background:white; padding:2px 4px;">H = ' + s.H + ' cm</div>' +
+                                    '</div>' +
+                                '</td>' +
+                                '<td style="vertical-align:bottom;">' +
+                                    shutterBlock +
+                                    '<div class="window-frame-box">' +
+                                        '<div class="diagram-pane">درفة 1<br><span class="arrow-indicator">↔</span></div>' +
+                                        '<div class="diagram-pane" style="margin-right:4px;">درفة 2<br><span class="arrow-indicator">↔</span></div>' +
+                                    '</div>' +
+                                '</td>' +
+                                '<td></td>' +
+                            '</tr>' +
+                        '</table>' +
+                    '</div>' +
+
+                    // Glass
+                    '<div class="side-data-box">' +
+                        '<h4>💎 صافي مقاسات الزجاج المطلوبة</h4>' +
+                        '<table class="mini-table">' +
+                            '<thead><tr><th>البيان</th><th>العدد</th><th>العرض × الارتفاع (cm)</th></tr></thead>' +
+                            '<tbody><tr>' +
+                                '<td style="font-weight:bold;">زجاج درفات</td>' +
+                                '<td style="font-weight:bold;">' + s.glassQty + '</td>' +
+                                '<td class="res-highlight">' + s.glassW + ' × ' + s.glassH + '</td>' +
+                            '</tr></tbody>' +
+                        '</table>' +
+                    '</div>' +
+
+                    // Accessories
+                    '<div class="side-data-box">' +
+                        '<h4>⚙️ الإكسسوارات المطلوبة للطلب</h4>' +
+                        '<table class="mini-table">' +
+                            '<thead><tr><th>الصنف</th><th>الكمية الإجمالية</th><th>الوحدة</th></tr></thead>' +
+                            '<tbody>' + accRows + '</tbody>' +
+                        '</table>' +
+                    '</div>' +
+
+                '</div>' + // end left-sidebar
+            '</div>' + // end content-layout
+
+            // Signature row
+            '<div style="display:flex; justify-content:space-between; margin-top:30px;">' +
+                '<div style="border-top:1px solid #555; padding-top:6px; width:40%; font-size:12px; color:#555; text-align:center;">توقيع الفني: _______________</div>' +
+                '<div style="border-top:1px solid #555; padding-top:6px; width:40%; font-size:12px; color:#555; text-align:center;">توقيع المشرف: _______________</div>' +
+            '</div>' +
+
+        '</div>'; // end main-sheet
+    });
+
+    // CSS — مطابق تماماً لـ index.html
+    var css = '<style>' +
+        ':root{--primary-dark:#2c3e50;--accent-red:#c0392b;--bg-light:#f8f9fa;--border-color:#bdc3c7;--accent-orange:#e67e22;}' +
+        '*{box-sizing:border-box;margin:0;padding:0;direction:rtl;}' +
+        'body{font-family:"Segoe UI",Tahoma,Arial,sans-serif;background:#d1d1d1;padding:20px;direction:rtl;}' +
+        '.main-sheet{background:white;max-width:1100px;margin:0 auto 25px;padding:30px;border:2px solid var(--primary-dark);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);}' +
+        '.header-section{text-align:center;border-bottom:3px double var(--primary-dark);padding-bottom:15px;margin-bottom:25px;}' +
+        '.header-section h2{margin:0 0 5px;color:var(--primary-dark);font-size:22px;}' +
+        '.header-section p{color:#555;font-size:13px;}' +
+        '.content-layout{display:flex;gap:20px;align-items:flex-start;}' +
+        '.table-container{flex:1;}' +
+        '.left-sidebar{width:290px;display:flex;flex-direction:column;gap:15px;}' +
+        '.window-diagram-box,.side-data-box{background:#fdfefe;border:2px solid var(--primary-dark);border-radius:6px;padding:12px;text-align:center;box-sizing:border-box;}' +
+        '.side-data-box{border-color:#34495e;text-align:right;}' +
+        '.side-data-box h4{margin:0 0 10px;border-bottom:2px solid #34495e;padding-bottom:5px;color:#2c3e50;font-size:14px;text-align:center;}' +
+        '.window-diagram-box h4{margin:0 0 10px;color:var(--primary-dark);font-size:13px;}' +
+        '.diagram-table-layout{margin:auto;border-collapse:separate;border-spacing:5px 0;}' +
+        '.shutter-row-frame{height:35px;background:#7f8c8d;border:3px solid #2c3e50;color:white;font-weight:bold;font-size:12px;text-align:center;border-radius:4px 4px 0 0;line-height:29px;}' +
+        '.window-frame-box{width:180px;height:120px;border:4px double var(--primary-dark);background:#ebf5fb;display:flex;justify-content:center;align-items:center;padding:5px;box-sizing:border-box;}' +
+        '.diagram-pane{width:49%;height:95%;border:2px solid #34495e;background:rgba(133,193,233,.5);display:flex;justify-content:center;align-items:center;font-weight:bold;font-size:11px;color:#2c3e50;}' +
+        '.arrow-indicator{font-size:13px;font-weight:bold;color:#7f8c8d;}' +
+        '.measure-label-style{font-size:13px;font-weight:bold;color:var(--accent-red);text-align:center;white-space:nowrap;}' +
+        '.mini-table{width:100%;border-collapse:collapse;background:white;margin-top:5px;}' +
+        '.mini-table th,.mini-table td{border:1px solid var(--border-color);padding:6px;text-align:center;font-size:13px;}' +
+        '.mini-table th{background:#34495e;color:white;}' +
+        '.mini-table td.res-highlight{font-weight:bold;color:var(--accent-red);font-size:15px;}' +
+        'table.main-data-table{width:100%;border-collapse:collapse;background:white;}' +
+        'table.main-data-table th,table.main-data-table td{border:1px solid var(--border-color);padding:10px;text-align:center;font-size:14px;}' +
+        'table.main-data-table th{background:#34495e;color:white;}' +
+        'table.main-data-table tr:nth-child(even){background-color:var(--bg-light);}' +
+        '.profile-badge{background:#7f8c8d;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;font-size:13px;}' +
+        '.num-result{font-weight:bold;color:var(--accent-red);font-size:20px;}' +
+        '@media print{' +
+            'body{background:white !important;padding:0 !important;}' +
+            '.main-sheet{border:none;box-shadow:none;padding:10px;max-width:100%;}' +
+            '.content-layout{display:flex !important;flex-direction:row !important;}' +
+            '.left-sidebar{width:260px !important;display:flex !important;flex-direction:column !important;}' +
+            'th{background:#eee !important;color:#000 !important;}' +
+            'td,th{border:1px solid #000 !important;padding:6px !important;}' +
+            '.num-result,.res-highlight{color:#000 !important;}' +
+            '.shutter-row-frame{background:#ddd !important;color:#000 !important;border:2px solid #000 !important;}' +
+            '.window-frame-box{background:white !important;border:2px solid #000 !important;}' +
+            '.diagram-pane{background:none !important;border:1px solid #000 !important;}' +
+        '}' +
+    '</style>';
+
+    return '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>طباعة — ' + proj.client + '</title>' + css + '</head><body>' + pages + '</body></html>';
+}
+
+function printProject(id) {
+    var proj = projects.find(function(p) { return p.id === id; });
+    if (!proj || !proj.windows || proj.windows.length === 0) {
+        alert('لا يوجد شبابيك في هذا المشروع'); return;
+    }
+    var indices = proj.windows.map(function(_, i) { return i; });
+    var win = window.open('', '_blank');
+    win.document.write(buildPrintDoc(proj, indices));
+    win.document.close();
+    win.onload = function() { win.print(); };
+}
+
+function printSingleWindow(projId, winIndex) {
+    var proj = projects.find(function(p) { return p.id === projId; });
+    if (!proj) return;
+    var win = window.open('', '_blank');
+    win.document.write(buildPrintDoc(proj, [winIndex]));
+    win.document.close();
+    win.onload = function() { win.print(); };
+}
+</script>
+</body>
+</html>
