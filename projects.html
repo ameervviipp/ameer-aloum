@@ -129,6 +129,7 @@
     .btn-edit-proj    { background: #e67e22; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
     .btn-del-proj     { background: #c0392b; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px; }
     .btn-print-proj   { background: #2980b9; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px; }
+    .btn-materials    { background: #8e44ad; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px; }
     .btn-preview-win  { background: #8e44ad; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; text-decoration: none; display:inline-block; }
     .btn-print-win    { background: #2980b9; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; margin-right: 3px; }
     .value-cell    { font-weight: bold; color: #27ae60; }
@@ -290,16 +291,9 @@ function initApp() {
     showLoading(true);
     db.collection('projects').doc(currentUid).get()
         .then(function(doc) {
-            if (doc.exists && Array.isArray(doc.data().items)) {
-                projects = migrateProjects(doc.data().items);
-            } else {
-                // أول مرة — جرّب هجرة localStorage
-                try {
-                    var s = localStorage.getItem('workshop_projects');
-                    projects = s ? migrateProjects(JSON.parse(s)) : [];
-                    if (projects.length > 0) saveProjects(); // ارفع البيانات القديمة لـFirestore
-                } catch(e) { projects = []; }
-            }
+            projects = (doc.exists && Array.isArray(doc.data().items))
+                ? migrateProjects(doc.data().items)
+                : [];
             renderProjects();
             updateStats();
             showLoading(false);
@@ -319,9 +313,6 @@ function showLoading(on) {
 }
 
 function saveProjects() {
-    // مزامنة محلية للـ print helpers
-    try { localStorage.setItem('workshop_projects', JSON.stringify(projects)); } catch(e) {}
-    // الحفظ الرئيسي في Firestore
     if (!currentUid) return;
     db.collection('projects').doc(currentUid).set({ items: projects })
         .catch(function(e) { console.error('Firestore save error:', e); });
@@ -587,11 +578,11 @@ function renderProjects() {
                 '<td style="font-size:12px; color:#777; text-align:right; max-width:130px;">' + (p.notes||'-') + '</td>' +
                 '<td>' +
                     '<button class="btn-print-proj" onclick="printProject(' + p.id + ')">🖨️</button>' +
+                    '<button class="btn-print-proj" style="background:#27ae60;" onclick="generateProjectCuttingPlan(' + p.id + ')">✂️</button>' +
+                    '<button class="btn-materials"  onclick="printProjectMaterials(' + p.id + ')">📦 </button>' +
                     '<button class="btn-edit-proj"  onclick="editProject(' + p.id + ')">✏️</button>' +
                     '<button class="btn-del-proj"   onclick="deleteProject(' + p.id + ')">🗑️</button>' +
-               // أضف هذا السطر ضمن أزرار الإجراءات في صف المشروع
-'<button class="btn-print-proj" style="background:#27ae60;" onclick="generateProjectCuttingPlan(' + p.id + ')">✂️ </button>' +
- '</td>' +
+                '</td>' +
 
             '</tr>' +
             '<tr class="detail-row" id="detail_' + p.id + '">' +
@@ -643,16 +634,12 @@ var dfltShutAcc  = [
 ];
 
 function loadCalcData() {
-    function tryParse(key, fallback) {
-        try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : JSON.parse(JSON.stringify(fallback)); }
-        catch(e) { return JSON.parse(JSON.stringify(fallback)); }
-    }
     return {
-        normal:   tryParse('workshop_normal_items', dfltNormal),
-        shutter:  tryParse('workshop_shutter_items', dfltShutter),
-        glass:    tryParse('workshop_glass_data', dfltGlass),
-        accNorm:  tryParse('workshop_acc_normal', dfltNormAcc),
-        accShut:  tryParse('workshop_acc_shutter', dfltShutAcc)
+        normal:  JSON.parse(JSON.stringify(dfltNormal)),
+        shutter: JSON.parse(JSON.stringify(dfltShutter)),
+        glass:   JSON.parse(JSON.stringify(dfltGlass)),
+        accNorm: JSON.parse(JSON.stringify(dfltNormAcc)),
+        accShut: JSON.parse(JSON.stringify(dfltShutAcc))
     };
 }
 
@@ -699,8 +686,33 @@ function calcWindowSheet(w, cd) {
 }
 
 /* ===================== PRINT ===================== */
-function buildPrintDoc(proj, windowIndices) {
-    var cd      = loadCalcData();
+function loadCalcDataFromFirestore(callback) {
+    var dflt = loadCalcData();
+    if (!currentUid) { callback(dflt); return; }
+    Promise.all([
+        db.collection('normal_items').doc(currentUid).get(),
+        db.collection('shutter_items').doc(currentUid).get(),
+        db.collection('workshop_config').doc(currentUid).get()
+    ]).then(function(docs) {
+        var nd = docs[0]; var sd = docs[1]; var cd = docs[2];
+        var result = {
+            normal:  (nd.exists && nd.data().items) ? nd.data().items  : dflt.normal,
+            shutter: (sd.exists && sd.data().items) ? sd.data().items  : dflt.shutter,
+            glass:   dflt.glass,
+            accNorm: dflt.accNorm,
+            accShut: dflt.accShut
+        };
+        if (cd.exists) {
+            var cfg = cd.data();
+            result.glass   = cfg.glass_data  || dflt.glass;
+            result.accNorm = cfg.acc_normal  || dflt.accNorm;
+            result.accShut = cfg.acc_shutter || dflt.accShut;
+        }
+        callback(result);
+    }).catch(function() { callback(dflt); });
+}
+
+function buildPrintDoc(proj, windowIndices, cd) {
     var wins    = proj.windows || [];
     var dateStr = proj.date ? proj.date.split('-').reverse().join('/') : '';
 
@@ -883,19 +895,521 @@ function printProject(id) {
         alert('لا يوجد شبابيك في هذا المشروع'); return;
     }
     var indices = proj.windows.map(function(_, i) { return i; });
-    var win = window.open('', '_blank');
-    win.document.write(buildPrintDoc(proj, indices));
-    win.document.close();
-    win.onload = function() { win.print(); };
+    loadCalcDataFromFirestore(function(cd) {
+        var win = window.open('', '_blank');
+        win.document.write(buildPrintDoc(proj, indices, cd));
+        win.document.close();
+        win.onload = function() { win.print(); };
+    });
 }
 
 function printSingleWindow(projId, winIndex) {
     var proj = projects.find(function(p) { return p.id === projId; });
     if (!proj) return;
-    var win = window.open('', '_blank');
-    win.document.write(buildPrintDoc(proj, [winIndex]));
-    win.document.close();
-    win.onload = function() { win.print(); };
+    loadCalcDataFromFirestore(function(cd) {
+        var win = window.open('', '_blank');
+        win.document.write(buildPrintDoc(proj, [winIndex], cd));
+        win.document.close();
+        win.onload = function() { win.print(); };
+    });
+}
+
+/* ===================== MATERIALS LIST ===================== */
+function printProjectMaterials(id) {
+    var proj = projects.find(function(p) { return p.id === id; });
+    if (!proj || !proj.windows || proj.windows.length === 0) {
+        alert('لا يوجد شبابيك في هذا المشروع'); return;
+    }
+    loadCalcDataFromFirestore(function(cd) {
+        // أطوال الباري القياسية المتاحة في السوق (سم) — أقصر عمود 450 سم
+        var STD_LENGTHS = [450, 600];
+
+        function recommendBarLength(maxCut) {
+            for (var i = 0; i < STD_LENGTHS.length; i++) {
+                if (STD_LENGTHS[i] >= maxCut) return STD_LENGTHS[i];
+            }
+            return STD_LENGTHS[STD_LENGTHS.length - 1];
+        }
+
+        function barLabel(cm) {
+            return (cm / 100) + ' متر';
+        }
+
+        // ---- تجميع البروفيلات ----
+        var profileMap = {};  // key: code → { code, name, totalCm, maxCut, pieces[] }
+        // ---- تجميع الإكسسوارات ----
+        var accMap = {};      // key: name → { name, unit, total }
+        // ---- تجميع الزجاج ----
+        var glassMap = {};    // key: "W×H" → { W, H, qty }
+
+        proj.windows.forEach(function(w) {
+            var s = calcWindowSheet(w, cd);
+
+            // بروفيلات
+            s.cuts.forEach(function(c) {
+                var cut = parseFloat(c.cut);
+                if (isNaN(cut) || cut <= 0) return;
+                var key = c.code;
+                if (!profileMap[key]) profileMap[key] = { code: c.code, name: c.name, totalCm: 0, maxCut: 0, pieces: [] };
+                profileMap[key].totalCm += cut * c.totalQty;
+                if (cut > profileMap[key].maxCut) profileMap[key].maxCut = cut;
+                for (var q = 0; q < c.totalQty; q++) profileMap[key].pieces.push(cut);
+            });
+
+            // إكسسوارات
+            s.accessories.forEach(function(a) {
+                if (!accMap[a.name]) accMap[a.name] = { name: a.name, unit: a.unit, total: 0 };
+                accMap[a.name].total += a.total;
+            });
+
+            // زجاج — تجميع حسب المقاس
+            var gKey = s.glassW + '×' + s.glassH;
+            if (!glassMap[gKey]) glassMap[gKey] = { W: s.glassW, H: s.glassH, qty: 0 };
+            glassMap[gKey].qty += s.glassQty;
+        });
+
+        // ---- بناء صفوف جدول البروفيلات ----
+        var profileRows = Object.values(profileMap).map(function(p) {
+            var recLen   = recommendBarLength(p.maxCut);
+            var recClass = recLen === 450 ? 'rec-45m' : 'rec-6m';
+
+            // توزيع القطع على الأعمدة (First-Fit Decreasing)
+            var sorted = p.pieces.slice().sort(function(a, b) { return b - a; });
+            var barRem = []; // باقي كل عمود
+            sorted.forEach(function(piece) {
+                var placed = false;
+                for (var b = 0; b < barRem.length; b++) {
+                    if (barRem[b] >= piece) {
+                        barRem[b] = parseFloat((barRem[b] - piece).toFixed(1));
+                        placed = true;
+                        break;
+                    }
+                }
+                if (!placed) barRem.push(parseFloat((recLen - piece).toFixed(1)));
+            });
+
+            // نص الباقي من كل عمود على حدى
+            var remText = barRem.map(function(r, i) {
+                return 'عمود ' + (i + 1) + ': <strong>' + r + ' cm</strong>';
+            }).join('<br>');
+
+            return '<tr>' +
+                '<td><span class="mat-badge">' + p.code + '</span></td>' +
+                '<td>' + p.name + '</td>' +
+                '<td class="num">' + p.maxCut.toFixed(1) + ' cm</td>' +
+                '<td class="num"><span class="rec-badge ' + recClass + '">' + barLabel(recLen) + '</span></td>' +
+                '<td class="num bars-num">' + barRem.length + '</td>' +
+                '<td class="rem-cell">' + remText + '</td>' +
+            '</tr>';
+        }).join('');
+
+        // ---- بناء صفوف جدول الإكسسوارات ----
+        var accRows = Object.values(accMap).map(function(a) {
+            return '<tr>' +
+                '<td>' + a.name + '</td>' +
+                '<td class="num">' + a.total + '</td>' +
+                '<td>' + a.unit + '</td>' +
+            '</tr>';
+        }).join('');
+
+        // ---- بناء صفوف جدول الزجاج ----
+        var glassRows = Object.values(glassMap).map(function(g) {
+            return '<tr>' +
+                '<td class="num">' + g.W + ' cm</td>' +
+                '<td class="num">' + g.H + ' cm</td>' +
+                '<td class="num bars-num">' + g.qty + '</td>' +
+            '</tr>';
+        }).join('');
+
+        var dateStr = proj.date ? proj.date.split('-').reverse().join('/') : '';
+        var totalWins = proj.windows.reduce(function(s, w) { return s + (parseInt(w.qty) || 1); }, 0);
+
+        var css = '<style>' +
+            '*{box-sizing:border-box;margin:0;padding:0;direction:rtl;font-family:"Segoe UI",Tahoma,Arial,sans-serif;}' +
+            'body{background:#d8d8d8;padding:20px;}' +
+            '.sheet{background:white;max-width:960px;margin:0 auto;padding:30px;border:2px solid #2c3e50;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);}' +
+            '.title-bar{text-align:center;border-bottom:3px double #2c3e50;padding-bottom:14px;margin-bottom:22px;}' +
+            '.title-bar h2{color:#2c3e50;font-size:22px;margin-bottom:4px;}' +
+            '.title-bar p{color:#555;font-size:13px;}' +
+            '.btn-cutting{display:inline-block;margin-top:10px;background:#27ae60;color:white;border:none;padding:7px 18px;border-radius:5px;font-size:13px;font-weight:bold;cursor:pointer;font-family:inherit;}' +
+            '.btn-cutting:hover{background:#1e8449;}' +
+            '.section{margin-bottom:24px;}' +
+            '.section h3{background:#2c3e50;color:white;padding:7px 14px;border-radius:5px 5px 0 0;font-size:15px;margin-bottom:0;}' +
+            'table{width:100%;border-collapse:collapse;}' +
+            'th,td{border:1px solid #bdc3c7;padding:7px 10px;font-size:13px;text-align:right;}' +
+            'th{background:#ecf0f1;color:#2c3e50;font-weight:bold;text-align:center;}' +
+            '.num{text-align:center;font-weight:bold;}' +
+            '.bars-num{color:#27ae60;font-size:15px;}' +
+            '.mat-badge{background:#2c3e50;color:white;border-radius:4px;padding:2px 7px;font-size:12px;font-weight:bold;}' +
+            '.rec-badge{border-radius:4px;padding:3px 9px;font-size:12px;font-weight:bold;color:white;}' +
+            '.rec-45m{background:#e67e22;}' +
+            '.rec-6m{background:#2980b9;}' +
+            '.rec-note{background:#fef9e7;border:1px solid #f9ca24;border-radius:5px;padding:8px 12px;font-size:12px;color:#666;margin-bottom:16px;line-height:1.7;}' +
+            '.rem-cell{font-size:12px;color:#555;line-height:1.9;padding:6px 10px;}' +
+            '.rem-cell strong{color:#c0392b;}' +
+            '.summary-row{display:flex;gap:16px;margin-bottom:22px;}' +
+            '.summary-box{flex:1;border:2px solid #2c3e50;border-radius:6px;padding:12px;text-align:center;}' +
+            '.summary-box .label{font-size:12px;color:#777;margin-bottom:4px;}' +
+            '.summary-box .value{font-size:22px;font-weight:bold;color:#2c3e50;}' +
+            '.sig{display:flex;justify-content:space-between;margin-top:28px;}' +
+            '.sig div{border-top:1px solid #555;padding-top:6px;width:42%;font-size:12px;color:#555;text-align:center;}' +
+            '@media print{body{background:white;padding:0;}.sheet{box-shadow:none;border:none;padding:15px;}.btn-cutting{display:none;}}' +
+        '</style>';
+
+        var totalBars = Object.values(profileMap).reduce(function(s, p) {
+            var recLen = recommendBarLength(p.maxCut);
+            var sorted = p.pieces.slice().sort(function(a, b) { return b - a; });
+            var barRem = [];
+            sorted.forEach(function(piece) {
+                var placed = false;
+                for (var b = 0; b < barRem.length; b++) {
+                    if (barRem[b] >= piece) { barRem[b] = parseFloat((barRem[b] - piece).toFixed(1)); placed = true; break; }
+                }
+                if (!placed) barRem.push(parseFloat((recLen - piece).toFixed(1)));
+            });
+            return s + barRem.length;
+        }, 0);
+        var totalAccTypes = Object.keys(accMap).length;
+        var totalGlassQty = Object.values(glassMap).reduce(function(s, g) { return s + g.qty; }, 0);
+        var projId = id;
+
+        var html = '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">' +
+            '<title>نشرة المستلزمات — ' + proj.client + '</title>' + css + '</head><body>' +
+            '<div class="sheet">' +
+
+            // عنوان
+            '<div class="title-bar">' +
+                '<h2>📦 نشرة المستلزمات الكاملة</h2>' +
+                '<p>العميل: <strong>' + proj.client + '</strong>' +
+                (proj.project ? ' &nbsp;|&nbsp; المشروع: <strong>' + proj.project + '</strong>' : '') +
+                (dateStr ? ' &nbsp;|&nbsp; التاريخ: ' + dateStr : '') +
+                ' &nbsp;|&nbsp; عدد الشبابيك: <strong>' + totalWins + '</strong></p>' +
+                '<button class="btn-cutting" onclick="openCuttingPlan()">✂️ فتح خطة القص</button>' +
+                '<button class="btn-cutting" style="background:#2980b9;margin-right:8px;" onclick="window.print()">🖨️ طباعة النشرة</button>' +
+            '</div>' +
+
+            // ملخص سريع
+            '<div class="summary-row">' +
+                '<div class="summary-box"><div class="label">إجمالي الباري المطلوبة</div><div class="value" style="color:#27ae60;">' + totalBars + '</div></div>' +
+                '<div class="summary-box"><div class="label">أصناف الإكسسوارات</div><div class="value" style="color:#e67e22;">' + totalAccTypes + '</div></div>' +
+                '<div class="summary-box"><div class="label">قطع الزجاج</div><div class="value" style="color:#2980b9;">' + totalGlassQty + '</div></div>' +
+            '</div>' +
+
+            // جدول البروفيلات
+            '<div class="section">' +
+                '<h3>🔩 البروفيلات المطلوبة</h3>' +
+                '<div class="rec-note">' +
+                    '🟠 <strong>4.5 متر</strong> — أطول قطعة ≤ 450 سم &nbsp;|&nbsp; ' +
+                    '🔵 <strong>6 متر</strong> — أطول قطعة ≤ 600 سم &nbsp;|&nbsp; ' +
+                    '<span style="color:#c0392b;font-weight:bold;">الأرقام الحمراء = الباقي من كل عمود</span>' +
+                '</div>' +
+                '<table>' +
+                    '<thead><tr><th>الكود</th><th>اسم البروفيل</th><th>أطول قطعة</th><th>توصية الطول</th><th>عدد الأعمدة</th><th>الباقي من كل عمود</th></tr></thead>' +
+                    '<tbody>' + (profileRows || '<tr><td colspan="6" style="text-align:center;color:#aaa;">لا توجد بيانات</td></tr>') + '</tbody>' +
+                '</table>' +
+            '</div>' +
+
+            // جدول الإكسسوارات
+            '<div class="section">' +
+                '<h3>⚙️ الإكسسوارات المطلوبة</h3>' +
+                '<table>' +
+                    '<thead><tr><th>الصنف</th><th>الكمية الكلية</th><th>الوحدة</th></tr></thead>' +
+                    '<tbody>' + (accRows || '<tr><td colspan="3" style="text-align:center;color:#aaa;">لا توجد بيانات</td></tr>') + '</tbody>' +
+                '</table>' +
+            '</div>' +
+
+            // جدول الزجاج
+            '<div class="section">' +
+                '<h3>💎 الزجاج المطلوب</h3>' +
+                '<table>' +
+                    '<thead><tr><th>العرض (cm)</th><th>الارتفاع (cm)</th><th>العدد</th></tr></thead>' +
+                    '<tbody>' + (glassRows || '<tr><td colspan="3" style="text-align:center;color:#aaa;">لا توجد بيانات</td></tr>') + '</tbody>' +
+                '</table>' +
+            '</div>' +
+
+            // توقيعات
+            '<div class="sig">' +
+                '<div>توقيع المشرف: _______________</div>' +
+                '<div>توقيع المستودع: _______________</div>' +
+            '</div>' +
+
+            '</div>' +
+            '<script>' +
+            'function openCuttingPlan(){' +
+            '  var par=window.opener;' +
+            '  if(par&&par.generateProjectCuttingPlan){par.generateProjectCuttingPlan(' + projId + ');}' +
+            '  else{alert("يرجى فتح خطة القص من زر ✂️ في صفحة المشاريع");}' +
+            '}' +
+            '<\/script>' +
+            '</body></html>';
+
+        var win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+    });
+}
+
+/* ===================== CUTTING PLAN ===================== */
+function generateProjectCuttingPlan(id) {
+    var proj = projects.find(function(p) { return p.id === id; });
+    if (!proj || !proj.windows || proj.windows.length === 0) {
+        alert('لا يوجد شبابيك في هذا المشروع'); return;
+    }
+
+    loadCalcDataFromFirestore(function(cd) { _buildCuttingPlan(proj, cd); });
+}
+
+function _buildCuttingPlan(proj, cd) {
+    var BAR_LENGTH = 600; // 6 متر = 600 سم
+
+    // تحييد اسم القطعة: إزالة لواحق (أفقي / عمودي / عادي / أباجور)
+    // حتى يتم دمج "عرض الحلق (أفقي)" مع "عرض الحلق - أباجور" في نفس المجموعة
+    // بينما "طول الحلق" تبقى مجموعة منفصلة لأن الاسم الأساسي مختلف
+    function normalizeName(name) {
+        return name
+            .replace(/\s*[\(\-]\s*(أفقي|عمودي|عادي|أباجور)\s*\)?/g, '')
+            .trim();
+    }
+
+    // جمع كل القطع مجمّعة حسب كود البروفيل + نوع القطعة الأساسي
+    var profileGroups = {};
+    proj.windows.forEach(function(w, wi) {
+        var s = calcWindowSheet(w, cd);
+        s.cuts.forEach(function(c) {
+            var cutVal = parseFloat(c.cut);
+            if (isNaN(cutVal) || cutVal <= 0) return;
+            var baseName = normalizeName(c.name);
+            var key = c.code + '||' + baseName;
+            if (!profileGroups[key]) {
+                profileGroups[key] = { code: c.code, name: baseName, pieces: [] };
+            }
+            for (var i = 0; i < c.totalQty; i++) {
+                profileGroups[key].pieces.push({ cut: cutVal, winNum: wi + 1 });
+            }
+        });
+    });
+
+    // خوارزمية تجمع القطع المتشابهة أولاً ثم تعبئ القضبان
+    function binPack(pieces) {
+        // تجميع القطع حسب القياس
+        var bySize = {};
+        pieces.forEach(function(p) {
+            var k = p.cut.toFixed(1);
+            if (!bySize[k]) bySize[k] = [];
+            bySize[k].push(p);
+        });
+
+        // ترتيب المجموعات من الأكبر للأصغر قياساً
+        var sizeGroups = Object.keys(bySize)
+            .sort(function(a, b) { return parseFloat(b) - parseFloat(a); })
+            .map(function(k) { return bySize[k]; });
+
+        var bars = [];
+
+        sizeGroups.forEach(function(group) {
+            // ضع كل قطع نفس القياس في بارات تُفضّل البارات التي تحتوي نفس القياس
+            group.forEach(function(piece) {
+                // ابحث أولاً عن بار يحتوي نفس القياس ولديه مكان
+                var placed = false;
+                for (var i = 0; i < bars.length; i++) {
+                    var hasSameSize = bars[i].pieces.some(function(bp) {
+                        return Math.abs(bp.cut - piece.cut) < 0.05;
+                    });
+                    if (hasSameSize && bars[i].remaining >= piece.cut) {
+                        bars[i].pieces.push(piece);
+                        bars[i].remaining -= piece.cut;
+                        placed = true;
+                        break;
+                    }
+                }
+                // إن لم يوجد بار بنفس القياس، ابحث عن أي بار فيه مكان
+                if (!placed) {
+                    for (var i = 0; i < bars.length; i++) {
+                        if (bars[i].remaining >= piece.cut) {
+                            bars[i].pieces.push(piece);
+                            bars[i].remaining -= piece.cut;
+                            placed = true;
+                            break;
+                        }
+                    }
+                }
+                // إن لم يوجد مكان أنشئ بار جديد
+                if (!placed) {
+                    bars.push({ remaining: BAR_LENGTH - piece.cut, pieces: [piece] });
+                }
+            });
+        });
+
+        return bars;
+    }
+
+    // دمج القطع المتشابهة مع الاحتفاظ بكل أرقام الشبابيك (مع التكرار)
+    function mergeSegments(pieces) {
+        var sorted = pieces.slice().sort(function(a, b) { return b.cut - a.cut; });
+        var merged = [];
+        sorted.forEach(function(p) {
+            var found = merged.find(function(m) { return Math.abs(m.cut - p.cut) < 0.05; });
+            if (found) {
+                found.count++;
+                found.allWins.push(p.winNum);
+            } else {
+                merged.push({ cut: p.cut, count: 1, allWins: [p.winNum] });
+            }
+        });
+        return merged;
+    }
+
+    // رسم خطوط فاصلة داخلية بين القطع المتشابهة المدمجة
+    function buildInnerDividers(count) {
+        if (count <= 1) return '';
+        var dividers = '';
+        var pct = (100 / count).toFixed(4);
+        for (var i = 1; i < count; i++) {
+            dividers += '<div style="position:absolute;top:0;bottom:0;right:' + (pct * i).toFixed(4) + '%;width:2px;background:rgba(255,255,255,0.55);"></div>';
+        }
+        return '<div style="position:relative;width:100%;height:100%;">' + dividers + '</div>';
+    }
+
+    // بناء HTML لكل قضيب — خط أفقي مع قياسات وأرقام شبابيك
+    function buildBarHTML(bar, barIdx) {
+        var waste = bar.remaining;
+        var usedPct = ((BAR_LENGTH - waste) / BAR_LENGTH * 100).toFixed(2);
+
+        // دمج القطع المتشابهة للعرض
+        var mergedPieces = mergeSegments(bar.pieces);
+
+        var segmentsHTML = mergedPieces.map(function(m) {
+            var totalWidth = m.cut * m.count;
+            var pct = (totalWidth / BAR_LENGTH * 100).toFixed(4);
+            var countLabel = m.count > 1 ? m.count + '×' + m.cut.toFixed(1) : m.cut.toFixed(1);
+            // رقم كل قطعة تحتها مباشرة — نبني خلايا فردية بداخل المقطع
+            var innerCells = m.allWins.map(function(wn) {
+                return '<div class="inner-cell">' +
+                    '<div class="inner-top">' + m.cut.toFixed(1) + '</div>' +
+                    '<div class="inner-fill"></div>' +
+                    '<div class="inner-bot">' + wn + '</div>' +
+                '</div>';
+            }).join('');
+            return '<div class="seg" style="width:' + pct + '%">' +
+                innerCells +
+            '</div>';
+        }).join('');
+
+        if (waste > 0.05) {
+            var wastePct = (waste / BAR_LENGTH * 100).toFixed(4);
+            segmentsHTML += '<div class="seg seg-waste" style="width:' + wastePct + '%">' +
+                '<div class="seg-top waste-lbl">فائض</div>' +
+                '<div class="seg-line"><div class="seg-fill waste-fill"></div></div>' +
+                '<div class="seg-bot waste-lbl">' + waste.toFixed(1) + ' سم</div>' +
+            '</div>';
+        }
+
+        return '<div class="bar-wrap">' +
+            '<div class="bar-hdr">' +
+                '<span class="bar-num">قضيب ' + (barIdx + 1) + '</span>' +
+                '<span class="bar-stat">مستخدم: <b>' + (BAR_LENGTH - waste).toFixed(1) + ' سم</b> &nbsp;|&nbsp; فائض: <b>' + waste.toFixed(1) + ' سم</b> &nbsp;|&nbsp; كفاءة: <b>' + usedPct + '%</b></span>' +
+            '</div>' +
+            '<div class="bar-vis">' + segmentsHTML + '</div>' +
+        '</div>';
+    }
+
+    // بناء محتوى الصفحة
+    var dateStr = proj.date ? proj.date.split('-').reverse().join('/') : '';
+    var totalBarsAll = 0;
+    var sectionsHTML = '';
+
+    Object.keys(profileGroups).forEach(function(key) {
+        var grp = profileGroups[key];
+        var bars = binPack(grp.pieces);
+        totalBarsAll += bars.length;
+
+        var barsHTML = bars.map(function(bar, i) { return buildBarHTML(bar, i); }).join('');
+
+        sectionsHTML +=
+            '<div class="prof-section">' +
+                '<div class="prof-hdr">' +
+                    '<span class="prof-badge">' + grp.code + '</span>' +
+                    '<span class="prof-name">' + grp.name + '</span>' +
+                    '<span class="prof-count">عدد القضبان: <b>' + bars.length + '</b></span>' +
+                '</div>' +
+                barsHTML +
+            '</div>';
+    });
+
+    // CSS
+    var css = '<style>' +
+        '*{box-sizing:border-box;margin:0;padding:0;direction:rtl;font-family:"Segoe UI",Tahoma,Arial,sans-serif;}' +
+        'body{background:#f0f4f8;padding:20px;}' +
+        '.pg-hdr{background:#1a3c5e;color:white;padding:18px 24px;border-radius:10px;margin-bottom:22px;border-right:6px solid #e67e22;}' +
+        '.pg-hdr h1{font-size:20px;margin-bottom:5px;}' +
+        '.pg-hdr p{font-size:13px;opacity:.85;}' +
+        '.summary-box{background:white;border-radius:8px;padding:12px 20px;margin-bottom:20px;display:flex;gap:30px;box-shadow:0 2px 8px rgba(0,0,0,.08);}' +
+        '.sum-item{text-align:center;}' +
+        '.sum-num{font-size:28px;font-weight:bold;color:#1a3c5e;}' +
+        '.sum-lbl{font-size:12px;color:#888;}' +
+        '.prof-section{background:white;border-radius:10px;padding:18px 20px;margin-bottom:20px;box-shadow:0 2px 10px rgba(0,0,0,.09);page-break-inside:avoid;}' +
+        '.prof-hdr{display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e8eef4;}' +
+        '.prof-badge{background:#1a3c5e;color:white;padding:4px 12px;border-radius:5px;font-weight:bold;font-size:14px;}' +
+        '.prof-name{font-size:15px;font-weight:bold;color:#333;flex:1;}' +
+        '.prof-count{font-size:13px;color:#e67e22;font-weight:bold;}' +
+        '.bar-wrap{margin-bottom:18px;}' +
+        '.bar-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}' +
+        '.bar-num{font-size:13px;font-weight:bold;color:#1a3c5e;}' +
+        '.bar-stat{font-size:12px;color:#888;}' +
+        '.bar-vis{display:flex;width:100%;height:80px;border:2px solid #1a3c5e;border-radius:6px;overflow:hidden;background:#f8fafc;}' +
+        '.seg{display:flex;flex-direction:row;align-items:stretch;min-width:0;overflow:hidden;}' +
+        '.seg-waste{display:flex;flex-direction:column;align-items:stretch;border-left:2px solid #bdc3c7;min-width:0;overflow:hidden;}' +
+        '.seg-waste .seg-top{font-size:10px;color:#bbb;text-align:center;padding:3px 2px 1px;height:20px;line-height:14px;}' +
+        '.seg-waste .seg-line{flex:1;padding:0 2px;}' +
+        '.seg-waste .seg-bot{font-size:10px;color:#bbb;text-align:center;padding:2px 2px 3px;height:20px;line-height:14px;}' +
+        '.waste-fill{background:linear-gradient(180deg,#ecf0f1 0%,#bdc3c7 100%)!important;}' +
+        '.inner-cell{display:flex;flex-direction:column;align-items:stretch;flex:1;border-left:2px solid #1a3c5e;min-width:0;overflow:hidden;}' +
+        '.inner-cell:first-child{border-left:none;}' +
+        '.inner-top{font-size:10px;font-weight:bold;color:#1a3c5e;text-align:center;padding:3px 2px 1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:20px;line-height:14px;}' +
+        '.inner-fill{flex:1;margin:0 2px;background:linear-gradient(180deg,#3498db 0%,#1a6fa8 100%);border-radius:2px;}' +
+        '.inner-bot{font-size:12px;font-weight:bold;color:#e67e22;text-align:center;padding:2px 2px 3px;height:20px;line-height:16px;}' +
+        '.legend{display:flex;gap:16px;align-items:center;margin-top:10px;font-size:12px;color:#666;}' +
+        '.leg-box{width:16px;height:16px;border-radius:3px;display:inline-block;margin-left:4px;vertical-align:middle;}' +
+        '@media print{' +
+            'body{background:white !important;padding:8px;}' +
+            '.prof-section{box-shadow:none;border:1px solid #ccc;}' +
+            '.bar-vis{border-color:#333;}' +
+            '.inner-cell{border-left-color:#333;}' +
+            '.inner-fill{background:#aaa !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+            '.pg-hdr{background:#1a3c5e !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+            '.prof-badge{background:#1a3c5e !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '}' +
+    '</style>';
+
+    var winCount = proj.windows.length;
+    var pieceCount = 0;
+    Object.keys(profileGroups).forEach(function(k) { pieceCount += profileGroups[k].pieces.length; });
+
+    var html = '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">' +
+        '<title>خطة القص — ' + proj.client + '</title>' + css + '</head><body>' +
+        '<div class="pg-hdr">' +
+            '<h1>✂️ خطة القص الأمثل — ' + proj.client + '</h1>' +
+            '<p>' + (dateStr ? 'التاريخ: ' + dateStr + ' &nbsp;|&nbsp; ' : '') +
+            'إجمالي الشبابيك: ' + winCount + ' &nbsp;|&nbsp; إجمالي القطع: ' + pieceCount + ' &nbsp;|&nbsp; إجمالي القضبان: ' + totalBarsAll + ' قضيب (6م)</p>' +
+        '</div>' +
+        '<div class="summary-box">' +
+            '<div class="sum-item"><div class="sum-num">' + winCount + '</div><div class="sum-lbl">شبابيك</div></div>' +
+            '<div class="sum-item"><div class="sum-num">' + pieceCount + '</div><div class="sum-lbl">قطعة كلياً</div></div>' +
+            '<div class="sum-item"><div class="sum-num">' + totalBarsAll + '</div><div class="sum-lbl">قضيب مطلوب</div></div>' +
+            '<div class="sum-item"><div class="sum-num">' + Object.keys(profileGroups).length + '</div><div class="sum-lbl">نوع بروفيل</div></div>' +
+        '</div>' +
+        '<div class="legend">' +
+            '<span><span class="leg-box" style="background:#3498db;"></span>قطعة مقصوصة</span>' +
+            '<span><span class="leg-box" style="background:#bdc3c7;"></span>فائض القضيب</span>' +
+            '<span style="font-size:11px; color:#aaa;">— الخط الفاصل بين القطع ديناميكي حسب القياس الحقيقي للقطعة</span>' +
+        '</div><br>' +
+        sectionsHTML +
+        '</body></html>';
+
+    var pw = window.open('', '_blank');
+    pw.document.write(html);
+    pw.document.close();
+    pw.onload = function() { pw.print(); };
 }
 
 
