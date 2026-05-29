@@ -899,48 +899,49 @@ function printSingleWindow(projId, winIndex) {
 }
 window.generateProjectCuttingPlan = function(projId) {
     var proj = projects.find(function(p) { return p.id == projId; });
-    if (!proj) { alert('المشروع غير موجود!'); return; }
+    if (!proj) return;
 
     var cd = loadCalcData();
     var allItems = [];
 
-    // سنعتمد على دالة النظام الأصلية لأنها هي الوحيدة التي تعرف القياسات الدقيقة
-    proj.windows.forEach(function(w, index) {
+    proj.windows.forEach(function(w, wIndex) {
+        // نستخدم الدالة الأساسية
         var sheet = calcWindowSheet(w, cd);
         
-        // 1. نقرأ أي شيء يخرجه النظام (سواء كان عادي أو أباجور)
-        if (sheet && sheet.cuts) {
-            sheet.cuts.forEach(function(c) {
-                allItems.push({
-                    winNum: index + 1,
-                    name: c.name, // سيظهر الاسم الحقيقي كما هو في النظام
-                    len: parseFloat(c.cut) * 10
-                });
-            });
-        } 
+        // هنا نقوم بالتحقق من كل الاحتمالات التي قد تكون فيها القطع
+        var source = sheet.cuts || []; 
         
-        // 2. إذا كان الشباك عادياً والنظام لا يخرج بيانات، نأخذ القياس الخام كحل احتياطي
-        // (ملاحظة: هذا الكود لن يكرر البيانات إذا كان النظام قد أخرجها مسبقاً)
-        if (!sheet || !sheet.cuts || sheet.cuts.length === 0) {
-            allItems.push({ winNum: index + 1, name: 'حلق (الافتراضي)', len: parseFloat(w.W) * 10 });
-            allItems.push({ winNum: index + 1, name: 'حلق (الافتراضي)', len: parseFloat(w.H) * 10 });
-        }
+        source.forEach(function(c) {
+            allItems.push({
+                winNum: wIndex + 1,
+                name: c.name || "قطعة غير مسماة",
+                code: c.code || "بدون كود", // لإظهار كود القطعة
+                len: parseFloat(c.cut) * 10,
+                qty: parseInt(c.totalQty) || 1
+            });
+        });
     });
+
+    if (allItems.length === 0) {
+        alert("لم يجد النظام أي قطع للقص.");
+        return;
+    }
 
     // العرض
     var win = window.open('', '_blank');
-    var html = '<html><head><style>body{font-family:Tahoma; direction:rtl; padding:20px;} .bar{border:1px solid #999; width:600px; height:50px; background:#fff; margin:15px 0; position:relative; box-shadow:1px 1px 3px #ccc;} .piece{position:absolute; height:50px; background:#2980b9; color:white; border-right:2px solid #fff; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:10px; font-weight:bold;}</style></head><body><h2>مشروع: ' + proj.client + '</h2>';
+    var html = '<html><head><style>body{font-family:Tahoma; direction:rtl; padding:20px;} .bar{border:1px solid #000; width:600px; height:50px; background:#fff; margin:15px 0; position:relative; box-shadow:1px 1px 3px #ccc;} .piece{position:absolute; height:50px; background:#2980b9; color:white; border-right:2px solid #fff; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:10px; font-weight:bold;}</style></head><body><h2>مشروع: ' + proj.client + '</h2>';
 
+    // التجميع حسب اسم القطعة + الكود (لضمان عدم خلط الأنواع)
     var groups = {};
     allItems.forEach(it => {
-        if (!groups[it.name]) groups[it.name] = [];
-        groups[it.name].push(it);
+        var key = it.name + " (" + it.code + ")";
+        if (!groups[key]) groups[key] = [];
+        for(var i=0; i<it.qty; i++) groups[key].push(it);
     });
 
     for (var groupName in groups) {
         html += '<h3>' + groupName + '</h3>';
         var bins = [];
-        // ترتيب القطع لتقليل الهالك
         groups[groupName].sort((a,b) => b.len - a.len).forEach(it => {
             var placed = false;
             for(var b of bins) { if (b.rem >= it.len) { b.items.push(it); b.rem -= it.len; placed = true; break; } }
