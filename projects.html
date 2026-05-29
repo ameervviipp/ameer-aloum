@@ -589,7 +589,10 @@ function renderProjects() {
                     '<button class="btn-print-proj" onclick="printProject(' + p.id + ')">🖨️</button>' +
                     '<button class="btn-edit-proj"  onclick="editProject(' + p.id + ')">✏️</button>' +
                     '<button class="btn-del-proj"   onclick="deleteProject(' + p.id + ')">🗑️</button>' +
-                '</td>' +
+               // أضف هذا السطر ضمن أزرار الإجراءات في صف المشروع
+'<button class="btn-print-proj" style="background:#27ae60;" onclick="generateProjectCuttingPlan(' + p.id + ')">✂️ </button>' +
+ '</td>' +
+
             '</tr>' +
             '<tr class="detail-row" id="detail_' + p.id + '">' +
                 '<td colspan="9"><div class="detail-inner">' + detailHtml + '</div></td>' +
@@ -894,6 +897,16 @@ function printSingleWindow(projId, winIndex) {
     win.document.close();
     win.onload = function() { win.print(); };
 }
+
+window.generateProjectCuttingPlan = function(projId) {
+    var proj = projects.find(function(p) { return p.id == projId; });
+    proj.windows.forEach(function(w, index) {
+        var sheet = calcWindowSheet(w, loadCalcData());
+        console.log("شباك رقم " + (index + 1), sheet);
+    });
+    alert("تم فحص الشبابيك، افتح الـ Console (F12) لترى البيانات.");
+};
+
 </script>
 </body>
 </html>
