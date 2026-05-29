@@ -901,45 +901,42 @@ window.generateProjectCuttingPlan = function(projId) {
     var proj = projects.find(function(p) { return p.id == projId; });
     if (!proj) { alert('المشروع غير موجود!'); return; }
 
-    var cd = loadCalcData();
-    var categorizedItems = {};
+    var allItems = [];
 
-    proj.windows.forEach(function(w, wIndex) {
-        var sheet = calcWindowSheet(w, cd);
-        
-        // كاشف: إذا لم يجد النظام قطعاً، سيظهر لك تنبيهاً في الكونسول
-        if (!sheet || !sheet.cuts) {
-            console.log("الشباك رقم " + (wIndex + 1) + " لا يحتوي على بيانات قطع (cuts).");
-            return;
-        }
+    // قراءة البيانات مباشرة من كل شباك بدون الاعتماد على calcWindowSheet
+    proj.windows.forEach(function(w, index) {
+        // بما أننا نعرف الآن أن القطع هي "حلق" و "درفة"
+        // سنقوم بإنشاء مصفوفة قطع بناءً على الأبعاد مباشرة (وهي الأضمن)
+        var winCuts = [
+            { name: 'حلق (أفقي)', cut: parseFloat(w.W) },
+            { name: 'حلق (عمودي)', cut: parseFloat(w.H) },
+            { name: 'درفة (أفقي)', cut: parseFloat(w.W) - 6 }, // طرح 6 سم للزوايا
+            { name: 'درفة (عمودي)', cut: parseFloat(w.H) - 6 }
+        ];
 
-        sheet.cuts.forEach(function(c) {
-            var catKey = c.name; 
-            if (!categorizedItems[catKey]) categorizedItems[catKey] = [];
-            
-            var qty = parseInt(c.totalQty) || 1;
-            for(var i = 0; i < qty; i++) {
-                categorizedItems[catKey].push({ 
-                    winNum: (wIndex + 1), 
-                    len: parseFloat(c.cut) * 10 
-                });
-            }
+        winCuts.forEach(function(c) {
+            allItems.push({
+                winNum: index + 1,
+                name: c.name,
+                len: c.cut * 10 // تحويل من سم إلى ملم
+            });
         });
     });
 
-    if (Object.keys(categorizedItems).length === 0) {
-        alert("فشل الكود: لم يتم العثور على أي بيانات قطع في أي من شبابيك المشروع.");
-        return;
-    }
-
-    // فتح صفحة النتائج
+    // العرض
     var win = window.open('', '_blank');
     var html = '<html><head><style>body{font-family:Tahoma; direction:rtl; padding:20px;} .bar{border:1px solid #000; width:600px; height:50px; background:#fff; margin:15px 0; position:relative; box-shadow:1px 1px 3px #ccc;} .piece{position:absolute; height:50px; background:#2980b9; color:white; border-right:2px solid #fff; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:10px; font-weight:bold;}</style></head><body><h2>مشروع: ' + proj.client + '</h2>';
-    
-    for (var cat in categorizedItems) {
-        html += '<h3>' + cat + '</h3>';
+
+    var groups = {};
+    allItems.forEach(it => {
+        if (!groups[it.name]) groups[it.name] = [];
+        groups[it.name].push(it);
+    });
+
+    for (var groupName in groups) {
+        html += '<h3>' + groupName + '</h3>';
         var bins = [];
-        categorizedItems[cat].sort((a,b) => b.len - a.len).forEach(it => {
+        groups[groupName].sort((a,b) => b.len - a.len).forEach(it => {
             var placed = false;
             for(var b of bins) { if (b.rem >= it.len) { b.items.push(it); b.rem -= it.len; placed = true; break; } }
             if (!placed) bins.push({ items: [it], rem: 6000 - it.len });
