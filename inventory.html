@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<style>html { visibility: hidden; }</style>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script>
+    var firebaseConfig = {
+        apiKey: "AIzaSyACkoN8JM59JKfFeEJwZqQVkJf0rHWPlZQ",
+        authDomain: "ameer-aluom.firebaseapp.com",
+        projectId: "ameer-aluom",
+        storageBucket: "ameer-aluom.firebasestorage.app",
+        messagingSenderId: "532053220562",
+        appId: "1:532053220562:web:7e47d6cb878c3d1d6ca10b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.firestore();
+    var currentUid = null;
+    var domReady   = false;
+    firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+            document.documentElement.style.visibility = 'visible';
+            currentUid = user.uid;
+            if (domReady) initApp();
+        } else {
+            window.location.replace('login.html');
+        }
+    });
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المخزون - ورشة الألمنيوم</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f0f4f8; direction: rtl; }
+
+    /* ========== NAVBAR ========== */
+    .app-navbar { background: #1a3c5e; color: white; display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 3px solid #e67e22; }
+    .navbar-brand { font-size: 17px; font-weight: bold; }
+    .navbar-links { display: flex; gap: 6px; }
+    .nav-link { color: #a8c4e0; text-decoration: none; padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: bold; }
+    .nav-link:hover { background: rgba(255,255,255,0.12); color: white; }
+    .nav-link.active { background: #e67e22; color: white; }
+    .nav-logout { background: #c0392b; color: white; border: none; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: bold; }
+
+    /* ========== PAGE ========== */
+    .page-wrapper { max-width: 1000px; margin: 0 auto; padding: 20px; }
+    .page-title { color: #1a3c5e; font-size: 22px; font-weight: bold; margin-bottom: 20px; }
+
+    /* ========== TABS ========== */
+    .inv-tabs { display: flex; gap: 6px; margin-bottom: 20px; border-bottom: 2px solid #1a3c5e; padding-bottom: 0; }
+    .inv-tab-btn { background: #dde; color: #1a3c5e; border: none; padding: 10px 22px; border-radius: 8px 8px 0 0; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: bold; margin-bottom: -2px; border: 2px solid transparent; border-bottom: none; }
+    .inv-tab-btn.active { background: white; border-color: #1a3c5e; color: #1a3c5e; }
+    .inv-tab-content { display: none; }
+    .inv-tab-content.active { display: block; }
+
+    /* ========== SECTION ========== */
+    .section-box { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 16px; }
+
+    /* ========== ADD FORM ========== */
+    .add-form-strip { background: #eaf0fb; border-bottom: 1px solid #d0ddf0; padding: 14px 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .add-form-strip .fg { display: flex; flex-direction: column; gap: 3px; }
+    .add-form-strip label { font-size: 11px; font-weight: bold; color: #555; }
+    .add-form-strip input { border: 1px solid #ccc; border-radius: 6px; padding: 7px 10px; font-family: inherit; font-size: 13px; width: 140px; outline: none; }
+    .add-form-strip input:focus { border-color: #1a3c5e; }
+    .btn-add-item { background: #1a3c5e; color: white; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: bold; white-space: nowrap; }
+
+    /* ========== STOCK TABLE ========== */
+    .stock-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .stock-table th { background: #1a3c5e; color: white; padding: 11px 14px; text-align: center; font-weight: bold; }
+    .stock-table td { padding: 10px 14px; text-align: center; border-bottom: 1px solid #eee; }
+    .stock-table tr:last-child td { border-bottom: none; }
+    .stock-table tr:hover td { background: #f8fafc; }
+
+    /* ========== STOCK LEVEL ========== */
+    .stock-ok  { color: #1e8449; font-weight: bold; }
+    .stock-low { color: #c0392b; font-weight: bold; }
+    .low-badge { display: inline-block; background: #f9c0c0; color: #c0392b; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold; margin-right: 4px; }
+
+    /* ========== QTY CONTROLS ========== */
+    .qty-control { display: flex; align-items: center; gap: 6px; justify-content: center; }
+    .qty-input { width: 70px; border: 1px solid #ccc; border-radius: 6px; padding: 5px 8px; text-align: center; font-size: 13px; font-family: inherit; }
+    .btn-add-qty { background: #27ae60; color: white; border: none; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; line-height: 1; }
+    .btn-sub-qty { background: #e67e22; color: white; border: none; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; line-height: 1; }
+    .btn-del-item { background: #c0392b; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
+
+    .empty-row td { color: #aaa; padding: 25px; font-size: 15px; }
+
+    /* ========== STATS ROW ========== */
+    .inv-stats { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .inv-stat { background: white; border-radius: 10px; padding: 14px 20px; flex: 1; min-width: 140px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); text-align: center; }
+    .inv-stat-num { font-size: 26px; font-weight: bold; color: #1a3c5e; }
+    .inv-stat-label { font-size: 12px; color: #888; margin-top: 3px; }
+    .inv-stat.warning .inv-stat-num { color: #c0392b; }
+
+    @media (max-width: 650px) {
+        .stock-table { font-size: 12px; }
+        .add-form-strip input { width: 100px; }
+    }
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<div class="app-navbar">
+    <div class="navbar-brand">🔧 ورشة الألمنيوم</div>
+    <div class="navbar-links">
+        <a href="index.html"     class="nav-link">🏠 الحاسبة</a>
+        <a href="projects.html"  class="nav-link">📋 المشاريع</a>
+        <a href="inventory.html" class="nav-link active">📦 المخزون</a>
+    </div>
+    <button class="nav-logout" onclick="doLogout()">🚪 خروج</button>
+</div>
+
+<!-- MAIN -->
+<div class="page-wrapper">
+    <div class="page-title">📦 إدارة المخزون</div>
+
+    <!-- Stats -->
+    <div class="inv-stats">
+        <div class="inv-stat">
+            <div class="inv-stat-num" id="stat_prof_count">0</div>
+            <div class="inv-stat-label">أصناف البروفيلات</div>
+        </div>
+        <div class="inv-stat">
+            <div class="inv-stat-num" id="stat_acc_count">0</div>
+            <div class="inv-stat-label">أصناف الإكسسوارات</div>
+        </div>
+        <div class="inv-stat warning">
+            <div class="inv-stat-num" id="stat_low_count">0</div>
+            <div class="inv-stat-label">⚠️ أصناف تحت الحد الأدنى</div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="inv-tabs">
+        <button class="inv-tab-btn active" onclick="switchTab('profiles')">🔩 البروفيلات</button>
+        <button class="inv-tab-btn"        onclick="switchTab('accessories')">⚙️ الإكسسوارات</button>
+    </div>
+
+    <!-- TAB: Profiles -->
+    <div id="tab-profiles" class="inv-tab-content active">
+        <div class="section-box">
+            <div class="add-form-strip">
+                <div class="fg"><label>كود البروفيل</label><input type="text" id="p_code" placeholder="03308"></div>
+                <div class="fg"><label>الاسم / البيان</label><input type="text" id="p_name" placeholder="الحلق العادي"></div>
+                <div class="fg"><label>الكمية (متر)</label><input type="number" id="p_stock" placeholder="0" min="0" step="0.5"></div>
+                <div class="fg"><label>الحد الأدنى (متر)</label><input type="number" id="p_min" placeholder="5" min="0" step="0.5"></div>
+                <button class="btn-add-item" onclick="addProfile()">➕ إضافة بروفيل</button>
+            </div>
+            <table class="stock-table">
+                <thead>
+                    <tr>
+                        <th>الكود</th>
+                        <th>البيان</th>
+                        <th>المخزون الحالي (متر)</th>
+                        <th>الحد الأدنى</th>
+                        <th>تعديل الكمية</th>
+                        <th>حذف</th>
+                    </tr>
+                </thead>
+                <tbody id="profiles_tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB: Accessories -->
+    <div id="tab-accessories" class="inv-tab-content">
+        <div class="section-box">
+            <div class="add-form-strip">
+                <div class="fg"><label>اسم الإكسسوار</label><input type="text" id="a_name" placeholder="عجال"></div>
+                <div class="fg"><label>الوحدة</label><input type="text" id="a_unit" placeholder="عجل"></div>
+                <div class="fg"><label>الكمية الحالية</label><input type="number" id="a_stock" placeholder="0" min="0"></div>
+                <div class="fg"><label>الحد الأدنى</label><input type="number" id="a_min" placeholder="10" min="0"></div>
+                <button class="btn-add-item" onclick="addAccessory()">➕ إضافة صنف</button>
+            </div>
+            <table class="stock-table">
+                <thead>
+                    <tr>
+                        <th>الصنف</th>
+                        <th>الوحدة</th>
+                        <th>المخزون الحالي</th>
+                        <th>الحد الأدنى</th>
+                        <th>تعديل الكمية</th>
+                        <th>حذف</th>
+                    </tr>
+                </thead>
+                <tbody id="accessories_tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+var invProfiles    = [];
+var invAccessories = [];
+
+var defaultInvProfiles = [
+    { id: 1, code: "03308", name: "الحلق",               stock: 0, min: 10, unit: "متر" },
+    { id: 2, code: "03327", name: "درفة طول (عمودي)",    stock: 0, min: 10, unit: "متر" },
+    { id: 3, code: "03336", name: "درفة عرض (أفقي)",    stock: 0, min: 10, unit: "متر" }
+];
+var defaultInvAccessories = [
+    { id: 1, name: "عجال",            unit: "عجل",       stock: 0, min: 20 },
+    { id: 2, name: "سكرة",            unit: "قطعة",      stock: 0, min: 10 },
+    { id: 3, name: "فرشاة مانع غبار", unit: "متر طولي", stock: 0, min: 10 },
+    { id: 4, name: "زوايا البشا",     unit: "زاوية",     stock: 0, min: 20 }
+];
+
+function doLogout() {
+    firebase.auth().signOut().then(function() { window.location.replace('login.html'); });
+}
+
+function initApp() {
+    db.collection('inventory').doc(currentUid).get()
+        .then(function(doc) {
+            if (doc.exists) {
+                invProfiles    = doc.data().profiles    || JSON.parse(JSON.stringify(defaultInvProfiles));
+                invAccessories = doc.data().accessories || JSON.parse(JSON.stringify(defaultInvAccessories));
+            } else {
+                // أول مرة — جرّب هجرة localStorage
+                try {
+                    var sp = localStorage.getItem('inv_profiles');
+                    var sa = localStorage.getItem('inv_accessories');
+                    invProfiles    = sp ? JSON.parse(sp) : JSON.parse(JSON.stringify(defaultInvProfiles));
+                    invAccessories = sa ? JSON.parse(sa) : JSON.parse(JSON.stringify(defaultInvAccessories));
+                    saveData(); // ارفع البيانات القديمة لـ Firestore
+                } catch(e) {
+                    invProfiles    = JSON.parse(JSON.stringify(defaultInvProfiles));
+                    invAccessories = JSON.parse(JSON.stringify(defaultInvAccessories));
+                }
+            }
+            renderProfiles();
+            renderAccessories();
+            updateStats();
+        })
+        .catch(function(e) {
+            console.error('Firestore inventory load error:', e);
+            invProfiles    = JSON.parse(JSON.stringify(defaultInvProfiles));
+            invAccessories = JSON.parse(JSON.stringify(defaultInvAccessories));
+            renderProfiles();
+            renderAccessories();
+            updateStats();
+        });
+}
+
+function loadData() { /* now handled by initApp() */ }
+
+function saveData() {
+    try {
+        localStorage.setItem('inv_profiles',    JSON.stringify(invProfiles));
+        localStorage.setItem('inv_accessories', JSON.stringify(invAccessories));
+    } catch(e) {}
+    if (!currentUid) return;
+    db.collection('inventory').doc(currentUid).set({
+        profiles:    invProfiles,
+        accessories: invAccessories
+    }).catch(function(e) { console.error('inventory save error:', e); });
+}
+
+function switchTab(tab) {
+    ['profiles','accessories'].forEach(function(t) {
+        document.getElementById('tab-' + t).classList.remove('active');
+    });
+    document.querySelectorAll('.inv-tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    document.getElementById('tab-' + tab).classList.add('active');
+    event.target.classList.add('active');
+}
+
+/* ---- PROFILES ---- */
+function addProfile() {
+    var code  = document.getElementById('p_code').value.trim();
+    var name  = document.getElementById('p_name').value.trim();
+    var stock = parseFloat(document.getElementById('p_stock').value) || 0;
+    var min   = parseFloat(document.getElementById('p_min').value)   || 0;
+    if (!name) { alert('الرجاء إدخال اسم البروفيل'); return; }
+    invProfiles.push({ id: Date.now(), code: code, name: name, stock: stock, min: min, unit: 'متر' });
+    saveData();
+    ['p_code','p_name','p_stock','p_min'].forEach(function(id) { document.getElementById(id).value = ''; });
+    renderProfiles();
+    updateStats();
+}
+
+function adjustProfile(id, delta) {
+    var inp = document.getElementById('adj_p_' + id);
+    var val = parseFloat(inp ? inp.value : 0) || 0;
+    var item = invProfiles.find(function(x) { return x.id === id; });
+    if (!item) return;
+    item.stock = Math.max(0, item.stock + delta * val);
+    saveData();
+    renderProfiles();
+    updateStats();
+}
+
+function deleteProfile(id) {
+    var item = invProfiles.find(function(x) { return x.id === id; });
+    if (item && confirm('حذف "' + item.name + '" من المخزون؟')) {
+        invProfiles = invProfiles.filter(function(x) { return x.id !== id; });
+        saveData();
+        renderProfiles();
+        updateStats();
+    }
+}
+
+function renderProfiles() {
+    var html = '';
+    if (invProfiles.length === 0) {
+        html = '<tr class="empty-row"><td colspan="6">لا توجد بروفيلات — أضف الأصناف أعلاه</td></tr>';
+    } else {
+        invProfiles.forEach(function(item) {
+            var isLow   = item.stock <= item.min;
+            var cls     = isLow ? 'stock-low' : 'stock-ok';
+            var lowBadge = isLow ? '<span class="low-badge">⚠️ نقص</span>' : '';
+            html += '<tr>' +
+                '<td><span style="background:#eaf0fb; color:#1a3c5e; padding:3px 10px; border-radius:4px; font-weight:bold; font-size:13px;">' + (item.code || '—') + '</span></td>' +
+                '<td style="font-weight:bold; text-align:right;">' + item.name + '</td>' +
+                '<td class="' + cls + '">' + lowBadge + item.stock.toFixed(1) + ' م</td>' +
+                '<td style="color:#888;">' + item.min.toFixed(1) + ' م</td>' +
+                '<td><div class="qty-control">' +
+                    '<button class="btn-sub-qty" onclick="adjustProfile(' + item.id + ', -1)">−</button>' +
+                    '<input class="qty-input" id="adj_p_' + item.id + '" type="number" value="1" min="0" step="0.5">' +
+                    '<button class="btn-add-qty" onclick="adjustProfile(' + item.id + ', 1)">+</button>' +
+                '</div></td>' +
+                '<td><button class="btn-del-item" onclick="deleteProfile(' + item.id + ')">🗑️</button></td>' +
+            '</tr>';
+        });
+    }
+    document.getElementById('profiles_tbody').innerHTML = html;
+}
+
+/* ---- ACCESSORIES ---- */
+function addAccessory() {
+    var name  = document.getElementById('a_name').value.trim();
+    var unit  = document.getElementById('a_unit').value.trim();
+    var stock = parseFloat(document.getElementById('a_stock').value) || 0;
+    var min   = parseFloat(document.getElementById('a_min').value)   || 0;
+    if (!name || !unit) { alert('الرجاء إدخال الاسم والوحدة'); return; }
+    invAccessories.push({ id: Date.now(), name: name, unit: unit, stock: stock, min: min });
+    saveData();
+    ['a_name','a_unit','a_stock','a_min'].forEach(function(id) { document.getElementById(id).value = ''; });
+    renderAccessories();
+    updateStats();
+}
+
+function adjustAccessory(id, delta) {
+    var inp = document.getElementById('adj_a_' + id);
+    var val = parseFloat(inp ? inp.value : 0) || 0;
+    var item = invAccessories.find(function(x) { return x.id === id; });
+    if (!item) return;
+    item.stock = Math.max(0, item.stock + delta * val);
+    saveData();
+    renderAccessories();
+    updateStats();
+}
+
+function deleteAccessory(id) {
+    var item = invAccessories.find(function(x) { return x.id === id; });
+    if (item && confirm('حذف "' + item.name + '" من المخزون؟')) {
+        invAccessories = invAccessories.filter(function(x) { return x.id !== id; });
+        saveData();
+        renderAccessories();
+        updateStats();
+    }
+}
+
+function renderAccessories() {
+    var html = '';
+    if (invAccessories.length === 0) {
+        html = '<tr class="empty-row"><td colspan="6">لا توجد إكسسوارات — أضف الأصناف أعلاه</td></tr>';
+    } else {
+        invAccessories.forEach(function(item) {
+            var isLow    = item.stock <= item.min;
+            var cls      = isLow ? 'stock-low' : 'stock-ok';
+            var lowBadge = isLow ? '<span class="low-badge">⚠️ نقص</span>' : '';
+            html += '<tr>' +
+                '<td style="font-weight:bold; text-align:right;">' + item.name + '</td>' +
+                '<td style="color:#888;">' + item.unit + '</td>' +
+                '<td class="' + cls + '">' + lowBadge + item.stock + '</td>' +
+                '<td style="color:#888;">' + item.min + '</td>' +
+                '<td><div class="qty-control">' +
+                    '<button class="btn-sub-qty" onclick="adjustAccessory(' + item.id + ', -1)">−</button>' +
+                    '<input class="qty-input" id="adj_a_' + item.id + '" type="number" value="1" min="0">' +
+                    '<button class="btn-add-qty" onclick="adjustAccessory(' + item.id + ', 1)">+</button>' +
+                '</div></td>' +
+                '<td><button class="btn-del-item" onclick="deleteAccessory(' + item.id + ')">🗑️</button></td>' +
+            '</tr>';
+        });
+    }
+    document.getElementById('accessories_tbody').innerHTML = html;
+}
+
+function updateStats() {
+    var lowP = invProfiles.filter(function(x) { return x.stock <= x.min; }).length;
+    var lowA = invAccessories.filter(function(x) { return x.stock <= x.min; }).length;
+    document.getElementById('stat_prof_count').innerText = invProfiles.length;
+    document.getElementById('stat_acc_count').innerText  = invAccessories.length;
+    document.getElementById('stat_low_count').innerText  = lowP + lowA;
+}
+
+window.onload = function() {
+    domReady = true;
+    if (currentUid) initApp();
+};
+</script>
+</body>
+</html>
