@@ -904,15 +904,15 @@ function printSingleWindow(projId, winIndex) {
 
 
 
-    window.generateProjectCuttingPlan = function(projId) {
+ window.generateProjectCuttingPlan = function(projId) {
     var proj = projects.find(function(p) { return p.id == projId; });
     if (!proj) { alert('المشروع غير موجود!'); return; }
 
     var cd = loadCalcData();
     var allItems = [];
 
-    // سحب كل القطع من كل الشبابيك ووضعها في مصفوفة واحدة ضخمة
-    proj.windows.forEach(function(w, wIndex) {
+    // سحب كل القطع من كل الشبابيك (عادي أو أباجور) ووضعها في مصفوفة واحدة
+    proj.windows.forEach(function(w) {
         var sheet = calcWindowSheet(w, cd);
         if (sheet && sheet.cuts) {
             sheet.cuts.forEach(function(c) {
@@ -920,8 +920,8 @@ function printSingleWindow(projId, winIndex) {
                 for(var i = 0; i < qty; i++) {
                     allItems.push({
                         name: c.name,
-                        code: c.code,
-                        len: parseFloat(c.cut) * 10 // تحويل للملم
+                        code: c.code || "بدون كود", // التجميع يتم حسب الكود لضمان تطابق البروفيلات
+                        len: parseFloat(c.cut) * 10 
                     });
                 }
             });
@@ -932,28 +932,37 @@ function printSingleWindow(projId, winIndex) {
 
     // العرض
     var win = window.open('', '_blank');
-    var html = '<html><head><style>body{font-family:Tahoma; direction:rtl; padding:20px;} .bar{border:1px solid #000; width:600px; height:50px; background:#fff; margin:15px 0; position:relative; box-shadow:1px 1px 3px #ccc;} .piece{position:absolute; height:50px; background:#2980b9; color:white; border-right:2px solid #fff; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:bold; overflow:hidden;}</style></head><body><h2>خطة التوفير الشاملة: ' + proj.client + '</h2>';
+    var html = '<html><head><style>' +
+        'body{font-family:Tahoma; direction:rtl; padding:20px; background:#f9f9f9;}' +
+        '.profile-section{background:#fff; border:1px solid #ccc; padding:15px; margin-bottom:20px; border-radius:5px;}' +
+        '.bar{border:2px solid #555; width:600px; height:40px; background:#eee; margin:10px 0; position:relative;}' +
+        '.piece{position:absolute; height:40px; background:#2c3e50; color:#fff; border-right:1px solid #fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold;}' +
+        '</style></head><body><h2>خطة القص الموحدة (أباجور + عادي): ' + proj.client + '</h2>';
 
-    // التجميع حسب نوع البروفيل فقط (لأن الألمنيوم لا يخلط الأنواع)
+    // التجميع حسب الكود (ليكون كل نوع ألمنيوم في قسمه الخاص)
     var groups = {};
     allItems.forEach(it => {
-        var key = it.name + " [" + it.code + "]";
+        var key = it.code + " - " + it.name;
         if (!groups[key]) groups[key] = [];
         groups[key].push(it);
     });
 
     for (var groupName in groups) {
-        html += '<h3>بروفيل: ' + groupName + '</h3>';
-        // خوارزمية "الأكبر أولاً" (Best Fit Decreasing) للتوفير
+        html += '<div class="profile-section"><h3>بروفيل: ' + groupName + '</h3>';
+        
+        // خوارزمية التوفير: ترتيب القطع من الأكبر للأصغر
+        var items = groups[groupName].sort((a,b) => b.len - a.len);
         var bins = [];
-        groups[groupName].sort((a,b) => b.len - a.len).forEach(it => {
+        
+        items.forEach(it => {
             var placed = false;
-            for(var b of bins) { 
-                if (b.rem >= it.len) { b.items.push(it); b.rem -= it.len; placed = true; break; } 
+            for(var b of bins) {
+                if(b.rem >= it.len) { b.items.push(it); b.rem -= it.len; placed = true; break; }
             }
-            if (!placed) bins.push({ items: [it], rem: 6000 - it.len });
+            if(!placed) bins.push({ items: [it], rem: 6000 - it.len });
         });
 
+        // رسم القطع
         bins.forEach(b => {
             html += '<div class="bar">';
             var pos = 0;
@@ -964,6 +973,7 @@ function printSingleWindow(projId, winIndex) {
             });
             html += '</div>';
         });
+        html += '</div>';
     }
     win.document.write(html + '</body></html>');
     win.document.close();
