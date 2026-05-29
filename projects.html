@@ -903,27 +903,29 @@ window.generateProjectCuttingPlan = function(projId) {
 
     var allItems = [];
 
-    // قراءة البيانات مباشرة من كل شباك بدون الاعتماد على calcWindowSheet
     proj.windows.forEach(function(w, index) {
-        // بما أننا نعرف الآن أن القطع هي "حلق" و "درفة"
-        // سنقوم بإنشاء مصفوفة قطع بناءً على الأبعاد مباشرة (وهي الأضمن)
-        var winCuts = [
-            { name: 'حلق (أفقي)', cut: parseFloat(w.W) },
-            { name: 'حلق (عمودي)', cut: parseFloat(w.H) },
-            { name: 'درفة (أفقي)', cut: parseFloat(w.W) - 6 }, // طرح 6 سم للزوايا
-            { name: 'درفة (عمودي)', cut: parseFloat(w.H) - 6 }
-        ];
+        // 1. إضافة قطع الحلق والدرفة الأساسية (للشبابيك العادية)
+        allItems.push({ winNum: index + 1, name: 'حلق (أفقي)', len: parseFloat(w.W) * 10 });
+        allItems.push({ winNum: index + 1, name: 'حلق (عمودي)', len: parseFloat(w.H) * 10 });
+        allItems.push({ winNum: index + 1, name: 'درفة (أفقي)', len: (parseFloat(w.W) - 60) * 10 });
+        allItems.push({ winNum: index + 1, name: 'درفة (عمودي)', len: (parseFloat(w.H) - 60) * 10 });
 
-        winCuts.forEach(function(c) {
-            allItems.push({
-                winNum: index + 1,
-                name: c.name,
-                len: c.cut * 10 // تحويل من سم إلى ملم
+        // 2. إضافة قطع الأباجور (إذا كان الشباك أباجور)
+        // النظام عندك يضع بيانات الأباجور في sheet.cuts إذا قمنا باستدعاء calcWindowSheet
+        var cd = loadCalcData();
+        var sheet = calcWindowSheet(w, cd);
+        if (w.isShutter === true && sheet && sheet.cuts) {
+            sheet.cuts.forEach(function(c) {
+                allItems.push({
+                    winNum: index + 1,
+                    name: '[أباجور] ' + c.name,
+                    len: parseFloat(c.cut) * 10
+                });
             });
-        });
+        }
     });
 
-    // العرض
+    // العرض (لا تغيير في منطق التجميع)
     var win = window.open('', '_blank');
     var html = '<html><head><style>body{font-family:Tahoma; direction:rtl; padding:20px;} .bar{border:1px solid #000; width:600px; height:50px; background:#fff; margin:15px 0; position:relative; box-shadow:1px 1px 3px #ccc;} .piece{position:absolute; height:50px; background:#2980b9; color:white; border-right:2px solid #fff; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:10px; font-weight:bold;}</style></head><body><h2>مشروع: ' + proj.client + '</h2>';
 
@@ -941,7 +943,6 @@ window.generateProjectCuttingPlan = function(projId) {
             for(var b of bins) { if (b.rem >= it.len) { b.items.push(it); b.rem -= it.len; placed = true; break; } }
             if (!placed) bins.push({ items: [it], rem: 6000 - it.len });
         });
-
         bins.forEach(b => {
             html += '<div class="bar">';
             var pos = 0;
