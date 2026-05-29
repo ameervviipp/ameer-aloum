@@ -897,54 +897,60 @@ function printSingleWindow(projId, winIndex) {
     win.document.close();
     win.onload = function() { win.print(); };
 }
-window.generateProjectCuttingPlan = function(projId) {
+
+
+
+
+
+
+
+    window.generateProjectCuttingPlan = function(projId) {
     var proj = projects.find(function(p) { return p.id == projId; });
-    if (!proj) return;
+    if (!proj) { alert('المشروع غير موجود!'); return; }
 
     var cd = loadCalcData();
     var allItems = [];
 
+    // سحب كل القطع من كل الشبابيك ووضعها في مصفوفة واحدة ضخمة
     proj.windows.forEach(function(w, wIndex) {
-        // نستخدم الدالة الأساسية
         var sheet = calcWindowSheet(w, cd);
-        
-        // هنا نقوم بالتحقق من كل الاحتمالات التي قد تكون فيها القطع
-        var source = sheet.cuts || []; 
-        
-        source.forEach(function(c) {
-            allItems.push({
-                winNum: wIndex + 1,
-                name: c.name || "قطعة غير مسماة",
-                code: c.code || "بدون كود", // لإظهار كود القطعة
-                len: parseFloat(c.cut) * 10,
-                qty: parseInt(c.totalQty) || 1
+        if (sheet && sheet.cuts) {
+            sheet.cuts.forEach(function(c) {
+                var qty = parseInt(c.totalQty) || 1;
+                for(var i = 0; i < qty; i++) {
+                    allItems.push({
+                        name: c.name,
+                        code: c.code,
+                        len: parseFloat(c.cut) * 10 // تحويل للملم
+                    });
+                }
             });
-        });
+        }
     });
 
-    if (allItems.length === 0) {
-        alert("لم يجد النظام أي قطع للقص.");
-        return;
-    }
+    if (allItems.length === 0) { alert("لا توجد بيانات قص"); return; }
 
     // العرض
     var win = window.open('', '_blank');
-    var html = '<html><head><style>body{font-family:Tahoma; direction:rtl; padding:20px;} .bar{border:1px solid #000; width:600px; height:50px; background:#fff; margin:15px 0; position:relative; box-shadow:1px 1px 3px #ccc;} .piece{position:absolute; height:50px; background:#2980b9; color:white; border-right:2px solid #fff; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:10px; font-weight:bold;}</style></head><body><h2>مشروع: ' + proj.client + '</h2>';
+    var html = '<html><head><style>body{font-family:Tahoma; direction:rtl; padding:20px;} .bar{border:1px solid #000; width:600px; height:50px; background:#fff; margin:15px 0; position:relative; box-shadow:1px 1px 3px #ccc;} .piece{position:absolute; height:50px; background:#2980b9; color:white; border-right:2px solid #fff; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:bold; overflow:hidden;}</style></head><body><h2>خطة التوفير الشاملة: ' + proj.client + '</h2>';
 
-    // التجميع حسب اسم القطعة + الكود (لضمان عدم خلط الأنواع)
+    // التجميع حسب نوع البروفيل فقط (لأن الألمنيوم لا يخلط الأنواع)
     var groups = {};
     allItems.forEach(it => {
-        var key = it.name + " (" + it.code + ")";
+        var key = it.name + " [" + it.code + "]";
         if (!groups[key]) groups[key] = [];
-        for(var i=0; i<it.qty; i++) groups[key].push(it);
+        groups[key].push(it);
     });
 
     for (var groupName in groups) {
-        html += '<h3>' + groupName + '</h3>';
+        html += '<h3>بروفيل: ' + groupName + '</h3>';
+        // خوارزمية "الأكبر أولاً" (Best Fit Decreasing) للتوفير
         var bins = [];
         groups[groupName].sort((a,b) => b.len - a.len).forEach(it => {
             var placed = false;
-            for(var b of bins) { if (b.rem >= it.len) { b.items.push(it); b.rem -= it.len; placed = true; break; } }
+            for(var b of bins) { 
+                if (b.rem >= it.len) { b.items.push(it); b.rem -= it.len; placed = true; break; } 
+            }
             if (!placed) bins.push({ items: [it], rem: 6000 - it.len });
         });
 
@@ -953,7 +959,7 @@ window.generateProjectCuttingPlan = function(projId) {
             var pos = 0;
             b.items.forEach(it => {
                 var w = (it.len / 6000) * 600;
-                html += `<div class="piece" style="width:${w-2}px; left:${pos}px;">${it.len}<span>شباك ${it.winNum}</span></div>`;
+                html += `<div class="piece" style="width:${w-2}px; left:${pos}px;">${it.len}</div>`;
                 pos += w;
             });
             html += '</div>';
