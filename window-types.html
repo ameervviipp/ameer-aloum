@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<style>html { visibility: hidden; }</style>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script>
+    var firebaseConfig = {
+        apiKey: "AIzaSyACkoN8JM59JKfFeEJwZqQVkJf0rHWPlZQ",
+        authDomain: "ameer-aluom.firebaseapp.com",
+        projectId: "ameer-aluom",
+        storageBucket: "ameer-aluom.firebasestorage.app",
+        messagingSenderId: "532053220562",
+        appId: "1:532053220562:web:7e47d6cb878c3d1d6ca10b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.firestore();
+    var currentUid = null;
+    var domReady = false;
+    firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+            document.documentElement.style.visibility = 'visible';
+            currentUid = user.uid;
+            if (domReady) initApp();
+        } else {
+            window.location.replace('login.html');
+        }
+    });
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>أنواع الهياكل - ورشة الألمنيوم</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f0f4f8; direction: rtl; }
+    .app-navbar { background: #1a3c5e; display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 3px solid #e67e22; }
+    .navbar-brand { font-size: 17px; font-weight: bold; color: white; }
+    .navbar-links { display: flex; gap: 6px; }
+    .nav-link { color: #a8c4e0; text-decoration: none; padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: bold; }
+    .nav-link:hover { background: rgba(255,255,255,0.12); color: white; }
+    .nav-link.active { background: #e67e22; color: white; }
+    .nav-logout { background: #c0392b; color: white; border: none; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: bold; }
+    .page-wrapper { max-width: 950px; margin: 0 auto; padding: 24px 16px; }
+    .page-title { color: #1a3c5e; font-size: 22px; font-weight: bold; margin-bottom: 6px; }
+    .page-sub { color: #666; font-size: 13px; margin-bottom: 22px; }
+    .add-card { background: white; border-radius: 10px; padding: 20px; margin-bottom: 22px; box-shadow: 0 2px 8px rgba(0,0,0,.09); border-right: 4px solid #27ae60; }
+    .add-card h3 { color: #27ae60; font-size: 16px; margin-bottom: 14px; }
+    .add-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .add-row label { font-size: 13px; color: #555; font-weight: bold; margin-bottom: 4px; display: block; }
+    .add-row input, .add-row select { border: 2px solid #ddd; border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 14px; direction: rtl; outline: none; }
+    .add-row input:focus { border-color: #1a3c5e; }
+    .inp-emoji { width: 80px; text-align: center; font-size: 18px; }
+    .inp-name { min-width: 200px; }
+    .btn-green { background: #27ae60; color: white; border: none; padding: 9px 22px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: bold; }
+    .btn-green:hover { background: #1e8449; }
+    .type-card { background: white; border-radius: 10px; margin-bottom: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.09); overflow: hidden; }
+    .type-hdr { background: #1a3c5e; color: white; padding: 14px 18px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+    .type-hdr .type-emoji { font-size: 22px; }
+    .type-hdr .type-name-display { font-size: 17px; font-weight: bold; flex: 1; }
+    .type-hdr .type-actions { display: flex; gap: 8px; }
+    .btn-icon { background: rgba(255,255,255,0.15); color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 13px; font-family: inherit; }
+    .btn-icon:hover { background: rgba(255,255,255,0.28); }
+    .btn-icon.red { background: rgba(192,57,43,0.7); }
+    .btn-icon.red:hover { background: #c0392b; }
+    .type-body { padding: 18px; border-top: 1px solid #e8eef4; }
+    .collapsed .type-body { display: none; }
+    .section-title { font-size: 14px; font-weight: bold; color: #1a3c5e; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #e8eef4; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 13px; }
+    th { background: #2c3e50; color: white; padding: 8px 10px; text-align: center; font-weight: bold; }
+    td { border: 1px solid #ddd; padding: 7px 8px; text-align: center; }
+    tr:nth-child(even) td { background: #f8f9fa; }
+    .btn-edit { background: #2980b9; color: white; border: none; padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .btn-delete { background: #c0392b; color: white; border: none; padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .inp-row { background: #fffde7 !important; }
+    .inp-row input { width: 100%; border: 1px solid #e67e22; border-radius: 4px; padding: 4px 6px; font-family: inherit; font-size: 13px; text-align: right; }
+    .form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-top: 8px; padding-top: 12px; border-top: 1px dashed #ddd; }
+    .form-row label { font-size: 12px; color: #555; font-weight: bold; display: block; margin-bottom: 3px; }
+    .form-row input { border: 2px solid #ddd; border-radius: 5px; padding: 7px 9px; font-family: inherit; font-size: 13px; direction: rtl; outline: none; }
+    .form-row input:focus { border-color: #1a3c5e; }
+    .formula-hint { font-size: 11px; color: #888; margin-top: 4px; }
+    .btn-add-row { background: #2980b9; color: white; border: none; padding: 7px 18px; border-radius: 5px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: bold; }
+    .btn-add-row:hover { background: #1a6fa8; }
+    .section-gap { margin-top: 22px; }
+    .rename-row { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+    .rename-row input { border: 2px solid #ddd; border-radius: 5px; padding: 6px 10px; font-family: inherit; font-size: 14px; direction: rtl; outline: none; }
+    .rename-row input:focus { border-color: #1a3c5e; }
+    .rename-row .inp-emoji { width: 70px; text-align: center; font-size: 18px; }
+    .btn-save-rename { background: #27ae60; color: white; border: none; padding: 7px 16px; border-radius: 5px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: bold; }
+    .empty-state { text-align: center; color: #aaa; font-size: 14px; padding: 30px; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #27ae60; color: white; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: bold; z-index: 9999; opacity: 0; transition: opacity .3s; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+    .toast.error { background: #c0392b; }
+    .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="app-navbar">
+    <div class="navbar-brand">🔧 ورشة الألمنيوم</div>
+    <div class="navbar-links">
+        <a href="index.html"        class="nav-link">🏠 الحاسبة</a>
+        <a href="projects.html"     class="nav-link">📋 المشاريع</a>
+        <a href="inventory.html"    class="nav-link">📦 المخزون</a>
+        <a href="manage-images.html"class="nav-link">🖼️ الصور</a>
+        <a href="window-types.html" class="nav-link active">🏗️ الأنواع</a>
+    </div>
+    <button class="nav-logout" onclick="firebase.auth().signOut().then(function(){window.location.replace('login.html');})">🚪 خروج</button>
+</div>
+
+<div class="page-wrapper">
+    <div class="page-title">🏗️ أنواع الهياكل المخصصة</div>
+    <p class="page-sub">أنشئ أنواعاً جديدة (أبواب، شبابيك خاصة...) بقوائم خصميات وإكسسوارات مستقلة — ستظهر في الحاسبة وعند إنشاء المشاريع.</p>
+
+    <!-- إضافة نوع جديد -->
+    <div class="add-card">
+        <h3>➕ إضافة نوع هيكل جديد</h3>
+        <div class="add-row">
+            <div>
+                <label>الرمز (إيموجي)</label>
+                <input class="inp-emoji" id="new_emoji" type="text" value="🚪" maxlength="4">
+            </div>
+            <div>
+                <label>اسم النوع</label>
+                <input class="inp-name" id="new_type_name" type="text" placeholder="مثال: باب ألمنيوم">
+            </div>
+            <div style="padding-bottom:1px;">
+                <button class="btn-green" onclick="addCustomType()">➕ إضافة</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- قائمة الأنواع -->
+    <div id="types_list"></div>
+    <div id="empty_state" class="empty-state" style="display:none;">لا يوجد أنواع مخصصة بعد — أضف نوعاً جديداً أعلاه</div>
+</div>
+
+<div class="toast" id="toast_msg"></div>
+
+<script>
+var customTypes = [];
+var editingRow  = {};  // { typeId: index }  — index of row being edited per type
+
+function initApp() {
+    db.collection('custom_types').doc(currentUid).get().then(function(doc) {
+        customTypes = (doc.exists && Array.isArray(doc.data().types)) ? doc.data().types : [];
+        renderTypes();
+    }).catch(function() { customTypes = []; renderTypes(); });
+}
+
+function saveTypes(cb) {
+    if (!currentUid) return;
+    db.collection('custom_types').doc(currentUid).set({ types: customTypes })
+    .then(function() { if (cb) cb(); })
+    .catch(function(e) { showToast('❌ خطأ في الحفظ: ' + (e.message || ''), 'error'); });
+}
+
+function showToast(msg, type) {
+    var el = document.getElementById('toast_msg');
+    el.textContent = msg;
+    el.className = 'toast' + (type === 'error' ? ' error' : '') + ' show';
+    setTimeout(function() { el.classList.remove('show'); }, 2500);
+}
+
+/* ====== Add / Delete Type ====== */
+function addCustomType() {
+    var name  = document.getElementById('new_type_name').value.trim();
+    var emoji = document.getElementById('new_emoji').value.trim() || '🔧';
+    if (!name) { showToast('أدخل اسم النوع', 'error'); return; }
+    var id = 'ct_' + Date.now();
+    customTypes.push({ id: id, name: name, emoji: emoji, items: [], accData: [] });
+    document.getElementById('new_type_name').value = '';
+    document.getElementById('new_emoji').value = '🚪';
+    saveTypes(function() {
+        renderTypes();
+        showToast('✅ تم إضافة النوع: ' + emoji + ' ' + name);
+    });
+}
+
+function deleteType(id) {
+    var ct = customTypes.find(function(t) { return t.id === id; });
+    if (!ct || !confirm('حذف نوع "' + ct.name + '"؟ سيُحذف مع جميع خصمياته وإكسسواراته.')) return;
+    customTypes = customTypes.filter(function(t) { return t.id !== id; });
+    saveTypes(function() { renderTypes(); showToast('🗑️ تم الحذف'); });
+}
+
+/* ====== Rename Type ====== */
+function renameType(id) {
+    var ct = customTypes.find(function(t) { return t.id === id; });
+    if (!ct) return;
+    var newName  = document.getElementById('rn_name_' + id).value.trim();
+    var newEmoji = document.getElementById('rn_emoji_' + id).value.trim() || ct.emoji;
+    if (!newName) { showToast('أدخل الاسم', 'error'); return; }
+    ct.name = newName; ct.emoji = newEmoji;
+    saveTypes(function() { renderTypes(); showToast('✅ تم التعديل'); });
+}
+
+/* ====== Profile Rows ====== */
+function startEditProfRow(typeId, idx) {
+    editingRow[typeId] = idx;
+    renderTypes();
+}
+
+function saveProfRow(typeId) {
+    var ct  = customTypes.find(function(t) { return t.id === typeId; });
+    var idx = editingRow[typeId];
+    if (!ct || idx === undefined) return;
+    var code    = document.getElementById('ed_code_' + typeId).value.trim();
+    var name    = document.getElementById('ed_name_' + typeId).value.trim();
+    var qty     = document.getElementById('ed_qty_' + typeId).value.trim();
+    var formula = document.getElementById('ed_formula_' + typeId).value.trim();
+    if (!code || !name || !qty || !formula) { showToast('تأكد من ملء جميع الحقول', 'error'); return; }
+    ct.items[idx] = { code: code, name: name, qty: qty, formula: formula };
+    delete editingRow[typeId];
+    saveTypes(function() { renderTypes(); showToast('✅ تم الحفظ'); });
+}
+
+function cancelEditProfRow(typeId) {
+    delete editingRow[typeId];
+    renderTypes();
+}
+
+function deleteProfRow(typeId, idx) {
+    var ct = customTypes.find(function(t) { return t.id === typeId; });
+    if (!ct || !confirm('حذف هذه القطعة؟')) return;
+    ct.items.splice(idx, 1);
+    saveTypes(function() { renderTypes(); showToast('🗑️ تم الحذف'); });
+}
+
+function addProfRow(typeId) {
+    var ct      = customTypes.find(function(t) { return t.id === typeId; });
+    if (!ct) return;
+    var code    = document.getElementById('np_code_' + typeId).value.trim();
+    var name    = document.getElementById('np_name_' + typeId).value.trim();
+    var qty     = document.getElementById('np_qty_' + typeId).value.trim();
+    var formula = document.getElementById('np_formula_' + typeId).value.trim();
+    if (!code || !name || !qty || !formula) { showToast('أكمل جميع حقول الخصمية', 'error'); return; }
+    ct.items.push({ code: code, name: name, qty: qty, formula: formula });
+    saveTypes(function() {
+        document.getElementById('np_code_' + typeId).value    = '';
+        document.getElementById('np_name_' + typeId).value    = '';
+        document.getElementById('np_qty_' + typeId).value     = '';
+        document.getElementById('np_formula_' + typeId).value = '';
+        renderTypes();
+        showToast('✅ تمت الإضافة');
+    });
+}
+
+/* ====== Accessories ====== */
+function deleteAcc(typeId, idx) {
+    var ct = customTypes.find(function(t) { return t.id === typeId; });
+    if (!ct || !confirm('حذف هذا الإكسسوار؟')) return;
+    ct.accData.splice(idx, 1);
+    saveTypes(function() { renderTypes(); showToast('🗑️ تم الحذف'); });
+}
+
+function addAcc(typeId) {
+    var ct   = customTypes.find(function(t) { return t.id === typeId; });
+    if (!ct) return;
+    var name = document.getElementById('na_name_' + typeId).value.trim();
+    var qty  = parseFloat(document.getElementById('na_qty_' + typeId).value);
+    var unit = document.getElementById('na_unit_' + typeId).value.trim();
+    if (!name || isNaN(qty) || !unit) { showToast('أكمل جميع حقول الإكسسوار', 'error'); return; }
+    ct.accData.push({ name: name, qty: qty, unit: unit });
+    saveTypes(function() {
+        document.getElementById('na_name_' + typeId).value = '';
+        document.getElementById('na_qty_' + typeId).value  = '';
+        document.getElementById('na_unit_' + typeId).value = '';
+        renderTypes();
+        showToast('✅ تمت الإضافة');
+    });
+}
+
+/* ====== Render ====== */
+function renderTypes() {
+    var list = document.getElementById('types_list');
+    var empty = document.getElementById('empty_state');
+    if (customTypes.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+    list.innerHTML = customTypes.map(function(ct) {
+        var id = ct.id;
+        /* --- Profile Rows --- */
+        var profRows = ct.items.map(function(item, i) {
+            if (editingRow[id] === i) {
+                return '<tr class="inp-row">' +
+                    '<td><input id="ed_code_' + id + '" value="' + esc(item.code) + '" placeholder="كود"></td>' +
+                    '<td><input id="ed_name_' + id + '" value="' + esc(item.name) + '" placeholder="اسم البروفيل"></td>' +
+                    '<td><input id="ed_qty_' + id + '" value="' + esc(item.qty) + '" placeholder="عدد" style="width:50px;"></td>' +
+                    '<td><input id="ed_formula_' + id + '" value="' + esc(item.formula) + '" placeholder="معادلة"></td>' +
+                    '<td><button class="btn-edit" onclick="saveProfRow(\'' + id + '\')">💾</button> ' +
+                        '<button class="btn-delete" onclick="cancelEditProfRow(\'' + id + '\')">✖</button></td>' +
+                '</tr>';
+            }
+            return '<tr>' +
+                '<td style="font-weight:bold;">' + esc(item.code) + '</td>' +
+                '<td style="text-align:right;">' + esc(item.name) + '</td>' +
+                '<td>' + esc(item.qty) + '</td>' +
+                '<td dir="ltr" style="font-family:monospace; font-size:12px;">' + esc(item.formula) + '</td>' +
+                '<td><button class="btn-edit" onclick="startEditProfRow(\'' + id + '\',' + i + ')">✏️</button> ' +
+                    '<button class="btn-delete" onclick="deleteProfRow(\'' + id + '\',' + i + ')">🗑️</button></td>' +
+            '</tr>';
+        }).join('');
+
+        /* --- Acc Rows --- */
+        var accRows = ct.accData.map(function(a, i) {
+            return '<tr>' +
+                '<td style="text-align:right;">' + esc(a.name) + '</td>' +
+                '<td>' + a.qty + '</td>' +
+                '<td>' + esc(a.unit) + '</td>' +
+                '<td><button class="btn-delete" onclick="deleteAcc(\'' + id + '\',' + i + ')">🗑️</button></td>' +
+            '</tr>';
+        }).join('');
+
+        return '<div class="type-card" id="card_' + id + '">' +
+            '<div class="type-hdr" onclick="toggleCard(\'' + id + '\')">' +
+                '<span class="type-emoji">' + esc(ct.emoji || '🔧') + '</span>' +
+                '<span class="type-name-display">' + esc(ct.name) + '</span>' +
+                '<div class="type-actions" onclick="event.stopPropagation();">' +
+                    '<button class="btn-icon red" onclick="deleteType(\'' + id + '\')">🗑️ حذف النوع</button>' +
+                '</div>' +
+                '<span style="color:#a8c4e0; font-size:12px; margin-right:8px;">▼</span>' +
+            '</div>' +
+            '<div class="type-body">' +
+                /* Rename */
+                '<div class="rename-row">' +
+                    '<input class="inp-emoji" id="rn_emoji_' + id + '" type="text" value="' + esc(ct.emoji || '🔧') + '" maxlength="4">' +
+                    '<input style="min-width:180px;" id="rn_name_' + id + '" type="text" value="' + esc(ct.name) + '" placeholder="اسم النوع">' +
+                    '<button class="btn-save-rename" onclick="renameType(\'' + id + '\')">✏️ تعديل الاسم</button>' +
+                '</div>' +
+
+                /* Profiles section */
+                '<div class="section-title">📋 قائمة الخصميات (البروفيلات)</div>' +
+                '<table>' +
+                    '<thead><tr><th>الكود</th><th>اسم البروفيل</th><th>عدد/شباك</th><th>المعادلة</th><th>إجراء</th></tr></thead>' +
+                    '<tbody>' + (profRows || '<tr><td colspan="5" style="color:#aaa; text-align:center;">لا توجد قطع بعد</td></tr>') + '</tbody>' +
+                '</table>' +
+                /* Add prof row */
+                '<div class="form-row">' +
+                    '<div><label>الكود</label><input id="np_code_' + id + '" type="text" placeholder="001" style="width:70px;"></div>' +
+                    '<div><label>اسم البروفيل</label><input id="np_name_' + id + '" type="text" placeholder="إطار خارجي" style="width:160px;"></div>' +
+                    '<div><label>عدد/شباك</label><input id="np_qty_' + id + '" type="text" placeholder="2" style="width:60px;"></div>' +
+                    '<div><label>المعادلة</label><input id="np_formula_' + id + '" type="text" placeholder="W-5" style="width:120px;" dir="ltr"><div class="formula-hint">استخدم W للعرض، H للارتفاع</div></div>' +
+                    '<div style="padding-bottom:2px;"><button class="btn-add-row" onclick="addProfRow(\'' + id + '\')">➕ إضافة قطعة</button></div>' +
+                '</div>' +
+
+                /* Accessories section */
+                '<div class="section-title section-gap">🔩 الإكسسوارات</div>' +
+                '<table>' +
+                    '<thead><tr><th>الاسم</th><th>الكمية/شباك</th><th>الوحدة</th><th>حذف</th></tr></thead>' +
+                    '<tbody>' + (accRows || '<tr><td colspan="4" style="color:#aaa; text-align:center;">لا توجد إكسسوارات بعد</td></tr>') + '</tbody>' +
+                '</table>' +
+                /* Add acc */
+                '<div class="form-row">' +
+                    '<div><label>اسم الإكسسوار</label><input id="na_name_' + id + '" type="text" placeholder="مفصلة" style="width:160px;"></div>' +
+                    '<div><label>الكمية/شباك</label><input id="na_qty_' + id + '" type="number" placeholder="2" style="width:70px;"></div>' +
+                    '<div><label>الوحدة</label><input id="na_unit_' + id + '" type="text" placeholder="حبة" style="width:80px;"></div>' +
+                    '<div style="padding-bottom:2px;"><button class="btn-add-row" onclick="addAcc(\'' + id + '\')">➕ إضافة</button></div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function toggleCard(id) {
+    var card = document.getElementById('card_' + id);
+    if (card) card.classList.toggle('collapsed');
+}
+
+function esc(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function logout() {
+    firebase.auth().signOut().then(function() { window.location.replace('login.html'); });
+}
+
+window.onload = function() {
+    domReady = true;
+    if (currentUid) initApp();
+};
+</script>
+</body>
+</html>
